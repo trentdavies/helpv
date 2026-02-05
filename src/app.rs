@@ -1,6 +1,6 @@
 use anyhow::Result;
 use crossterm::event::{self, Event, KeyCode, KeyEvent};
-use ratatui::{buffer::Buffer, layout::Rect, widgets::Widget, Frame};
+use ratatui::{Frame, buffer::Buffer, layout::Rect, widgets::Widget};
 use std::time::Duration;
 
 use crate::{
@@ -10,7 +10,7 @@ use crate::{
     history::History,
     keys::{Action, KeyHandler},
     pager::{HelpOverlay, Pager, PagerWidget, SearchInput},
-    parser::{parse_subcommands, Subcommand},
+    parser::{Subcommand, parse_subcommands},
     switcher::{CommandSwitcher, SwitcherAction, SwitcherWidget},
     toolpacks::ToolPacks,
 };
@@ -70,7 +70,10 @@ impl App {
         })
     }
 
-    pub fn run(&mut self, terminal: &mut ratatui::Terminal<impl ratatui::backend::Backend>) -> Result<()> {
+    pub fn run(
+        &mut self,
+        terminal: &mut ratatui::Terminal<impl ratatui::backend::Backend>,
+    ) -> Result<()> {
         while !self.should_quit {
             terminal.draw(|frame| self.draw(frame))?;
             self.handle_events()?;
@@ -82,7 +85,8 @@ impl App {
         let area = frame.area();
 
         // Clamp scroll based on current viewport
-        self.pager.clamp_scroll(area.height.saturating_sub(1) as usize);
+        self.pager
+            .clamp_scroll(area.height.saturating_sub(1) as usize);
 
         // Draw the pager
         let breadcrumb = self.history.full_breadcrumb(&self.current_command);
@@ -120,10 +124,11 @@ impl App {
 
     fn handle_events(&mut self) -> Result<()> {
         if event::poll(Duration::from_millis(100))?
-            && let Event::Key(key) = event::read()? {
-                self.error_message = None; // Clear error on any key press
-                self.handle_key(key)?;
-            }
+            && let Event::Key(key) = event::read()?
+        {
+            self.error_message = None; // Clear error on any key press
+            self.handle_key(key)?;
+        }
         Ok(())
     }
 
@@ -277,10 +282,8 @@ impl App {
 
     fn drill_into_item(&mut self, item: &Subcommand) -> Result<()> {
         // Save current state to history
-        self.history.push(
-            self.current_command.clone(),
-            self.pager.scroll,
-        );
+        self.history
+            .push(self.current_command.clone(), self.pager.scroll);
 
         let base_cmd = &self.current_command[0];
 

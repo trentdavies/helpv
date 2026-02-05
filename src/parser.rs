@@ -126,7 +126,11 @@ fn parse_git_style(help_text: &str) -> Vec<Subcommand> {
         if !line.starts_with(' ') && !line.starts_with('\t') && !line.trim().is_empty() {
             // Check if this looks like a git section header (lowercase, possibly with parenthetical)
             let trimmed = line.trim();
-            if trimmed.chars().next().map(|c| c.is_lowercase()).unwrap_or(false)
+            if trimmed
+                .chars()
+                .next()
+                .map(|c| c.is_lowercase())
+                .unwrap_or(false)
                 || trimmed.contains("(see also:")
             {
                 in_command_section = true;
@@ -140,21 +144,20 @@ fn parse_git_style(help_text: &str) -> Vec<Subcommand> {
             }
         }
 
-        if in_command_section {
-            if let Some(captures) = entry_re.captures(line)
-                && let Some(name_match) = captures.get(1)
-            {
-                let name = name_match.as_str().to_string();
-                let description = captures.get(2).map(|m| m.as_str().trim().to_string());
+        if in_command_section
+            && let Some(captures) = entry_re.captures(line)
+            && let Some(name_match) = captures.get(1)
+        {
+            let name = name_match.as_str().to_string();
+            let description = captures.get(2).map(|m| m.as_str().trim().to_string());
 
-                if !subcommands.iter().any(|s: &Subcommand| s.name == name) {
-                    subcommands.push(Subcommand {
-                        name,
-                        description,
-                        label: None,
-                        invoke_command: None,
-                    });
-                }
+            if !subcommands.iter().any(|s: &Subcommand| s.name == name) {
+                subcommands.push(Subcommand {
+                    name,
+                    description,
+                    label: None,
+                    invoke_command: None,
+                });
             }
         }
     }
@@ -174,9 +177,7 @@ fn parse_aggressive(help_text: &str) -> Vec<Subcommand> {
         let lower = line.to_lowercase();
 
         // Detect section headers - broader matching
-        if lower.contains("command")
-            || lower.contains("subcommand")
-            || lower.contains("available")
+        if lower.contains("command") || lower.contains("subcommand") || lower.contains("available")
         {
             in_likely_section = true;
             continue;
@@ -191,7 +192,11 @@ fn parse_aggressive(help_text: &str) -> Vec<Subcommand> {
             if !line.starts_with(' ') && !line.starts_with('\t') {
                 // Keep going if it looks like a category header (lowercase start, or contains 'see also')
                 let trimmed = line.trim();
-                if !trimmed.chars().next().map(|c| c.is_lowercase()).unwrap_or(false)
+                if !trimmed
+                    .chars()
+                    .next()
+                    .map(|c| c.is_lowercase())
+                    .unwrap_or(false)
                     && !lower.contains("command")
                     && !lower.contains("see also")
                 {

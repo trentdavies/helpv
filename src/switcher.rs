@@ -166,8 +166,8 @@ impl<'a> SwitcherWidget<'a> {
 impl Widget for SwitcherWidget<'_> {
     fn render(self, area: Rect, buf: &mut Buffer) {
         // Calculate overlay dimensions
-        let width = (area.width * 2 / 3).min(60).max(30);
-        let height = (area.height * 2 / 3).min(20).max(8);
+        let width = (area.width * 2 / 3).clamp(30, 60);
+        let height = (area.height * 2 / 3).clamp(8, 20);
 
         let x = area.x + (area.width - width) / 2;
         let y = area.y + (area.height - height) / 2;
@@ -181,10 +181,7 @@ impl Widget for SwitcherWidget<'_> {
         let title = if self.switcher.history.is_empty() {
             " Open Command ".to_string()
         } else {
-            format!(
-                " Open Command ({} recent) ",
-                self.switcher.history.len()
-            )
+            format!(" Open Command ({} recent) ", self.switcher.history.len())
         };
         let block = Block::default()
             .title(title)
@@ -209,7 +206,12 @@ impl Widget for SwitcherWidget<'_> {
         if !hint.is_empty() {
             let hint_x = inner.x + input_line.len() as u16;
             let hint_span = Span::styled(hint, Style::default().fg(Color::DarkGray));
-            buf.set_span(hint_x, inner.y, &hint_span, inner.width.saturating_sub(input_line.len() as u16));
+            buf.set_span(
+                hint_x,
+                inner.y,
+                &hint_span,
+                inner.width.saturating_sub(input_line.len() as u16),
+            );
         }
 
         // Draw separator
@@ -234,13 +236,7 @@ impl Widget for SwitcherWidget<'_> {
             let span = Span::styled(line, style);
             buf.set_span(inner.x, items_start_y, &span, inner.width);
         } else {
-            for (i, (_, idx)) in self
-                .switcher
-                .filtered
-                .iter()
-                .take(items_height)
-                .enumerate()
-            {
+            for (i, (_, idx)) in self.switcher.filtered.iter().take(items_height).enumerate() {
                 let cmd = &self.switcher.history[*idx];
                 let y = items_start_y + i as u16;
 

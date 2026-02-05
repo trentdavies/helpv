@@ -56,52 +56,132 @@ impl KeyHandler {
     fn match_key(&self, key: KeyEvent) -> Option<Action> {
         let key_str = key_to_string(&key);
 
-        if self.config.quit.iter().any(|k| matches_key(k, &key_str, &key)) {
+        if self
+            .config
+            .quit
+            .iter()
+            .any(|k| matches_key(k, &key_str, &key))
+        {
             return Some(Action::Quit);
         }
-        if self.config.scroll_up.iter().any(|k| matches_key(k, &key_str, &key)) {
+        if self
+            .config
+            .scroll_up
+            .iter()
+            .any(|k| matches_key(k, &key_str, &key))
+        {
             return Some(Action::ScrollUp);
         }
-        if self.config.scroll_down.iter().any(|k| matches_key(k, &key_str, &key)) {
+        if self
+            .config
+            .scroll_down
+            .iter()
+            .any(|k| matches_key(k, &key_str, &key))
+        {
             return Some(Action::ScrollDown);
         }
-        if self.config.half_page_up.iter().any(|k| matches_key(k, &key_str, &key)) {
+        if self
+            .config
+            .half_page_up
+            .iter()
+            .any(|k| matches_key(k, &key_str, &key))
+        {
             return Some(Action::HalfPageUp);
         }
-        if self.config.half_page_down.iter().any(|k| matches_key(k, &key_str, &key)) {
+        if self
+            .config
+            .half_page_down
+            .iter()
+            .any(|k| matches_key(k, &key_str, &key))
+        {
             return Some(Action::HalfPageDown);
         }
-        if self.config.page_up.iter().any(|k| matches_key(k, &key_str, &key)) {
+        if self
+            .config
+            .page_up
+            .iter()
+            .any(|k| matches_key(k, &key_str, &key))
+        {
             return Some(Action::PageUp);
         }
-        if self.config.page_down.iter().any(|k| matches_key(k, &key_str, &key)) {
+        if self
+            .config
+            .page_down
+            .iter()
+            .any(|k| matches_key(k, &key_str, &key))
+        {
             return Some(Action::PageDown);
         }
-        if self.config.top.iter().any(|k| matches_key(k, &key_str, &key)) {
+        if self
+            .config
+            .top
+            .iter()
+            .any(|k| matches_key(k, &key_str, &key))
+        {
             return Some(Action::Top);
         }
-        if self.config.bottom.iter().any(|k| matches_key(k, &key_str, &key)) {
+        if self
+            .config
+            .bottom
+            .iter()
+            .any(|k| matches_key(k, &key_str, &key))
+        {
             return Some(Action::Bottom);
         }
-        if self.config.search.iter().any(|k| matches_key(k, &key_str, &key)) {
+        if self
+            .config
+            .search
+            .iter()
+            .any(|k| matches_key(k, &key_str, &key))
+        {
             return Some(Action::Search);
         }
-        if self.config.next_match.iter().any(|k| matches_key(k, &key_str, &key)) {
+        if self
+            .config
+            .next_match
+            .iter()
+            .any(|k| matches_key(k, &key_str, &key))
+        {
             return Some(Action::NextMatch);
         }
-        if self.config.prev_match.iter().any(|k| matches_key(k, &key_str, &key)) {
+        if self
+            .config
+            .prev_match
+            .iter()
+            .any(|k| matches_key(k, &key_str, &key))
+        {
             return Some(Action::PrevMatch);
         }
-        if self.config.find_subcommand.iter().any(|k| matches_key(k, &key_str, &key)) {
+        if self
+            .config
+            .find_subcommand
+            .iter()
+            .any(|k| matches_key(k, &key_str, &key))
+        {
             return Some(Action::OpenFinder);
         }
-        if self.config.open_command.iter().any(|k| matches_key(k, &key_str, &key)) {
+        if self
+            .config
+            .open_command
+            .iter()
+            .any(|k| matches_key(k, &key_str, &key))
+        {
             return Some(Action::OpenCommand);
         }
-        if self.config.back.iter().any(|k| matches_key(k, &key_str, &key)) {
+        if self
+            .config
+            .back
+            .iter()
+            .any(|k| matches_key(k, &key_str, &key))
+        {
             return Some(Action::Back);
         }
-        if self.config.help.iter().any(|k| matches_key(k, &key_str, &key)) {
+        if self
+            .config
+            .help
+            .iter()
+            .any(|k| matches_key(k, &key_str, &key))
+        {
             return Some(Action::ShowHelp);
         }
 

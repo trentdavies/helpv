@@ -138,11 +138,7 @@ impl<'a> PagerWidget<'a> {
 
 impl Widget for PagerWidget<'_> {
     fn render(self, area: Rect, buf: &mut Buffer) {
-        let chunks = Layout::vertical([
-            Constraint::Min(1),
-            Constraint::Length(1),
-        ])
-        .split(area);
+        let chunks = Layout::vertical([Constraint::Min(1), Constraint::Length(1)]).split(area);
 
         let content_area = chunks[0];
         let status_area = chunks[1];
@@ -186,7 +182,12 @@ impl Widget for PagerWidget<'_> {
     }
 }
 
-fn highlight_line(line: &str, query: &str, is_match_line: bool, is_current_match: bool) -> Line<'static> {
+fn highlight_line(
+    line: &str,
+    query: &str,
+    is_match_line: bool,
+    is_current_match: bool,
+) -> Line<'static> {
     if !is_match_line {
         return Line::raw(line.to_string());
     }
@@ -207,9 +208,7 @@ fn highlight_line(line: &str, query: &str, is_match_line: bool, is_current_match
                 .bg(Color::Cyan)
                 .add_modifier(Modifier::BOLD)
         } else {
-            Style::default()
-                .fg(Color::Black)
-                .bg(Color::Yellow)
+            Style::default().fg(Color::Black).bg(Color::Yellow)
         };
 
         spans.push(Span::styled(
@@ -226,6 +225,7 @@ fn highlight_line(line: &str, query: &str, is_match_line: bool, is_current_match
     Line::from(spans)
 }
 
+#[allow(clippy::too_many_arguments)]
 fn render_status_bar(
     area: Rect,
     buf: &mut Buffer,
@@ -246,14 +246,24 @@ fn render_status_bar(
 
     // Left: breadcrumb
     let breadcrumb_span = Span::styled(format!(" {} ", breadcrumb), status_style);
-    buf.set_span(area.x, area.y, &breadcrumb_span, breadcrumb.len() as u16 + 2);
+    buf.set_span(
+        area.x,
+        area.y,
+        &breadcrumb_span,
+        breadcrumb.len() as u16 + 2,
+    );
 
     // Build right side info
     let mut right_parts = Vec::new();
 
     if let Some(query) = search_query {
         if match_count > 0 {
-            right_parts.push(format!("/{} ({}/{})", query, current_match + 1, match_count));
+            right_parts.push(format!(
+                "/{} ({}/{})",
+                query,
+                current_match + 1,
+                match_count
+            ));
         } else {
             right_parts.push(format!("/{} (no matches)", query));
         }
@@ -337,7 +347,12 @@ impl Widget for HelpOverlay {
 
         let lines: Vec<&str> = help_text.lines().collect();
         let height = lines.len().min(area.height as usize);
-        let width = lines.iter().map(|l| l.len()).max().unwrap_or(40).min(area.width as usize - 4);
+        let width = lines
+            .iter()
+            .map(|l| l.len())
+            .max()
+            .unwrap_or(40)
+            .min(area.width as usize - 4);
 
         let x = area.x + (area.width.saturating_sub(width as u16 + 4)) / 2;
         let y = area.y + (area.height.saturating_sub(height as u16 + 2)) / 2;

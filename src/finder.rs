@@ -62,12 +62,7 @@ impl Finder {
 
         if self.query.is_empty() {
             // Show all items when query is empty
-            self.filtered = self
-                .items
-                .iter()
-                .enumerate()
-                .map(|(i, _)| (0, i))
-                .collect();
+            self.filtered = self.items.iter().enumerate().map(|(i, _)| (0, i)).collect();
             return;
         }
 
@@ -76,12 +71,7 @@ impl Finder {
 
         if terms.is_empty() {
             // Query is all whitespace - show all
-            self.filtered = self
-                .items
-                .iter()
-                .enumerate()
-                .map(|(i, _)| (0, i))
-                .collect();
+            self.filtered = self.items.iter().enumerate().map(|(i, _)| (0, i)).collect();
             return;
         }
 
@@ -257,7 +247,11 @@ impl Widget for FinderWidget<'_> {
         Clear.render(overlay_area, buf);
 
         // Draw border
-        let title = format!(" Subcommands ({}/{}) ", self.finder.filtered_count(), self.finder.items.len());
+        let title = format!(
+            " Subcommands ({}/{}) ",
+            self.finder.filtered_count(),
+            self.finder.items.len()
+        );
         let block = Block::default()
             .title(title)
             .borders(Borders::ALL)
@@ -269,10 +263,7 @@ impl Widget for FinderWidget<'_> {
 
         // Draw search input
         let input_line = format!("> {}", self.finder.query);
-        let input_span = Span::styled(
-            &input_line,
-            Style::default().fg(Color::Yellow),
-        );
+        let input_span = Span::styled(&input_line, Style::default().fg(Color::Yellow));
         buf.set_span(inner.x, inner.y, &input_span, inner.width);
 
         // Draw separator
@@ -326,11 +317,7 @@ impl Widget for FinderWidget<'_> {
             if let Some(ref label) = item.label {
                 line.push('[');
                 // Abbreviate long labels
-                let short_label = if label.len() > 8 {
-                    &label[..8]
-                } else {
-                    label
-                };
+                let short_label = if label.len() > 8 { &label[..8] } else { label };
                 line.push_str(short_label);
                 line.push_str("] ");
             }

@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use std::process::Command;
 
 use crate::config::Config;
@@ -20,25 +20,28 @@ pub fn fetch_help(cmd: &[String], config: &Config) -> Result<String> {
 
     for flag_pattern in &help_flags {
         if let Some(output) = try_help_pattern(cmd, flag_pattern)
-            && !output.trim().is_empty() {
-                return Ok(output);
-            }
+            && !output.trim().is_empty()
+        {
+            return Ok(output);
+        }
     }
 
     // Try man page as fallback
     if let Some(output) = try_man_page(cmd)
-        && !output.trim().is_empty() {
-            return Ok(output);
-        }
+        && !output.trim().is_empty()
+    {
+        return Ok(output);
+    }
 
-    Err(anyhow!(
-        "Could not fetch help for '{}'",
-        cmd.join(" ")
-    ))
+    Err(anyhow!("Could not fetch help for '{}'", cmd.join(" ")))
 }
 
 /// Fetch help using a specific invoke command template
-pub fn fetch_help_with_invoke(base_cmd: &str, item_name: &str, invoke_template: &str) -> Result<String> {
+pub fn fetch_help_with_invoke(
+    base_cmd: &str,
+    item_name: &str,
+    invoke_template: &str,
+) -> Result<String> {
     let cmd_str = invoke_template
         .replace("{base}", base_cmd)
         .replace("{name}", item_name);
@@ -48,9 +51,7 @@ pub fn fetch_help_with_invoke(base_cmd: &str, item_name: &str, invoke_template: 
         return Err(anyhow!("Invalid invoke command"));
     }
 
-    let result = Command::new(parts[0])
-        .args(&parts[1..])
-        .output()?;
+    let result = Command::new(parts[0]).args(&parts[1..]).output()?;
 
     // Some tools write help to stderr
     let stdout = String::from_utf8_lossy(&result.stdout);
@@ -58,12 +59,14 @@ pub fn fetch_help_with_invoke(base_cmd: &str, item_name: &str, invoke_template: 
 
     if !stdout.trim().is_empty() {
         Ok(stdout.into_owned())
-    } else if !stderr.trim().is_empty() && result.status.success() {
-        Ok(stderr.into_owned())
-    } else if !stderr.trim().is_empty() && looks_like_help(&stderr) {
+    } else if !stderr.trim().is_empty() && (result.status.success() || looks_like_help(&stderr)) {
         Ok(stderr.into_owned())
     } else {
-        Err(anyhow!("Could not fetch help for '{} {}'", base_cmd, item_name))
+        Err(anyhow!(
+            "Could not fetch help for '{} {}'",
+            base_cmd,
+            item_name
+        ))
     }
 }
 
@@ -86,10 +89,7 @@ fn try_help_pattern(cmd: &[String], pattern: &str) -> Option<String> {
         return None;
     }
 
-    let result = Command::new(parts[0])
-        .args(&parts[1..])
-        .output()
-        .ok()?;
+    let result = Command::new(parts[0]).args(&parts[1..]).output().ok()?;
 
     // Some tools write help to stderr
     let stdout = String::from_utf8_lossy(&result.stdout);

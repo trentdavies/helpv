@@ -67,19 +67,18 @@ impl ToolPacks {
         // Load user overrides from ~/.config/helpv/tools/*.toml
         if let Some(config_dir) = dirs::config_dir() {
             let tools_dir = config_dir.join("helpv").join("tools");
-            if tools_dir.exists() {
-                if let Ok(entries) = std::fs::read_dir(&tools_dir) {
-                    for entry in entries.flatten() {
-                        let path = entry.path();
-                        if path.extension().map(|e| e == "toml").unwrap_or(false) {
-                            if let Ok(content) = std::fs::read_to_string(&path) {
-                                if let Ok(user_packs) = toml::from_str::<ToolPacks>(&content) {
-                                    // User packs override defaults
-                                    for (name, pack) in user_packs.tools {
-                                        packs.tools.insert(name, pack);
-                                    }
-                                }
-                            }
+            if tools_dir.exists()
+                && let Ok(entries) = std::fs::read_dir(&tools_dir)
+            {
+                for entry in entries.flatten() {
+                    let path = entry.path();
+                    if path.extension().map(|e| e == "toml").unwrap_or(false)
+                        && let Ok(content) = std::fs::read_to_string(&path)
+                        && let Ok(user_packs) = toml::from_str::<ToolPacks>(&content)
+                    {
+                        // User packs override defaults
+                        for (name, pack) in user_packs.tools {
+                            packs.tools.insert(name, pack);
                         }
                     }
                 }
@@ -107,10 +106,7 @@ impl ToolPack {
     /// Get help flags for fetching subcommand help
     pub fn get_subcommand_commands(&self) -> Vec<String> {
         if self.subcommand.is_empty() {
-            vec![
-                "{cmd} --help".to_string(),
-                "{base} help {sub}".to_string(),
-            ]
+            vec!["{cmd} --help".to_string(), "{base} help {sub}".to_string()]
         } else {
             self.subcommand.clone()
         }
@@ -142,9 +138,7 @@ impl DiscoverySource {
             return Ok(items);
         }
 
-        let output = Command::new(parts[0])
-            .args(&parts[1..])
-            .output()?;
+        let output = Command::new(parts[0]).args(&parts[1..]).output()?;
 
         if !output.status.success() {
             return Ok(items);
@@ -154,18 +148,18 @@ impl DiscoverySource {
 
         // Compile patterns
         let entry_re = Regex::new(&self.pattern)?;
-        let section_re = self.section.as_ref().map(|s| Regex::new(s).ok()).flatten();
+        let section_re = self.section.as_ref().and_then(|s| Regex::new(s).ok());
 
         // Parse the output
         let mut in_section = section_re.is_none(); // If no section pattern, parse everything
 
         for line in text.lines() {
             // Check for section header
-            if let Some(ref re) = section_re {
-                if re.is_match(line) {
-                    in_section = true;
-                    continue;
-                }
+            if let Some(ref re) = section_re
+                && re.is_match(line)
+            {
+                in_section = true;
+                continue;
             }
 
             if !in_section {
@@ -173,27 +167,26 @@ impl DiscoverySource {
             }
 
             // Try to match entry
-            if let Some(caps) = entry_re.captures(line) {
-                if let Some(name_match) = caps.get(1) {
-                    let name = name_match.as_str().to_string();
-                    let description = caps.get(2).map(|m| m.as_str().trim().to_string());
+            if let Some(caps) = entry_re.captures(line)
+                && let Some(name_match) = caps.get(1)
+            {
+                let name = name_match.as_str().to_string();
+                let description = caps.get(2).map(|m| m.as_str().trim().to_string());
 
-                    // Skip if looks like a flag
-                    if name.starts_with('-') {
-                        continue;
-                    }
-
-                    items.push(DiscoveredItem {
-                        name,
-                        description,
-                        label: self.label.clone(),
-                        invoke_template: self.invoke.clone(),
-                    });
+                // Skip if looks like a flag
+                if name.starts_with('-') {
+                    continue;
                 }
+
+                items.push(DiscoveredItem {
+                    name,
+                    description,
+                    label: self.label.clone(),
+                    invoke_template: self.invoke.clone(),
+                });
             }
         }
 
         Ok(items)
     }
-
 }

@@ -120,10 +120,7 @@ impl Config {
         }
 
         // Generic fallback
-        vec![
-            "{cmd} --help".to_string(),
-            "{cmd} -h".to_string(),
-        ]
+        vec!["{cmd} --help".to_string(), "{cmd} -h".to_string()]
     }
 
     /// Get help flags for a subcommand
