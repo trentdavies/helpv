@@ -31,6 +31,34 @@ invoke = "git help {name}"
 help = ["gh --help"]
 subcommand = ["{base} {sub} --help", "{base} help {sub}"]
 
+[[gh.discover]]
+label = "Core"
+run = "gh --help"
+section = "^CORE COMMANDS"
+pattern = "^  ([a-z-]+):\\s+(.*)$"
+invoke = "gh {name} --help"
+
+[[gh.discover]]
+label = "Actions"
+run = "gh --help"
+section = "^GITHUB ACTIONS COMMANDS"
+pattern = "^  ([a-z-]+):\\s+(.*)$"
+invoke = "gh {name} --help"
+
+[[gh.discover]]
+label = "Additional"
+run = "gh --help"
+section = "^ADDITIONAL COMMANDS"
+pattern = "^  ([a-z-]+):\\s+(.*)$"
+invoke = "gh {name} --help"
+
+[[gh.discover]]
+label = "Help"
+run = "gh --help"
+section = "^HELP TOPICS"
+pattern = "^  ([a-z-]+):\\s+(.*)$"
+invoke = "gh help {name}"
+
 [hg]
 help = ["hg --help"]
 subcommand = ["hg help {sub}", "hg {sub} --help"]

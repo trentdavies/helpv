@@ -165,8 +165,8 @@ fn parse_git_style(help_text: &str) -> Vec<Subcommand> {
 fn parse_aggressive(help_text: &str) -> Vec<Subcommand> {
     let mut subcommands = Vec::new();
 
-    // Look for common patterns like "  command    Description"
-    let entry_re = Regex::new(r"^\s{2,6}([a-z][\w-]*)\s{2,}(.*)$").unwrap();
+    // Look for common patterns like "  command    Description" or "  command:   Description"
+    let entry_re = Regex::new(r"^\s{2,6}([a-z][\w-]*):?\s{2,}(.*)$").unwrap();
 
     let mut in_likely_section = false;
 

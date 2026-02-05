@@ -99,6 +99,11 @@ impl Config {
                 section: r"(?im)^(usage|options):?\s*$".to_string(),
                 entry: r"^\s{2,4}([\w][\w-]*)\s{2,}(.*)$".to_string(),
             },
+            // gh-style: "GENERAL COMMANDS" section header with "  cmd:  description" entries
+            SubcommandPattern {
+                section: r"(?i)^\w+\s+COMMANDS?\s*$".to_string(),
+                entry: r"^\s{2}([\w][\w-]*):\s+(.*)$".to_string(),
+            },
         ]
     }
 
