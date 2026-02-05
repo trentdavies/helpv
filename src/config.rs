@@ -191,3 +191,168 @@ impl KeyConfig {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use regex::Regex;
+
+    // ========================================
+    // Default pattern tests
+    // ========================================
+
+    #[test]
+    fn default_patterns_are_valid_regex() {
+        let patterns = Config::default_subcommand_patterns();
+        for pattern in patterns {
+            let section_result = Regex::new(&pattern.section);
+            assert!(
+                section_result.is_ok(),
+                "Invalid section regex: {}",
+                pattern.section
+            );
+
+            let entry_result = Regex::new(&pattern.entry);
+            assert!(
+                entry_result.is_ok(),
+                "Invalid entry regex: {}",
+                pattern.entry
+            );
+        }
+    }
+
+    #[test]
+    fn default_patterns_count() {
+        let patterns = Config::default_subcommand_patterns();
+        assert_eq!(patterns.len(), 3);
+    }
+
+    #[test]
+    fn default_pattern_matches_commands_header() {
+        let patterns = Config::default_subcommand_patterns();
+        let section_re = Regex::new(&patterns[0].section).unwrap();
+
+        assert!(section_re.is_match("Commands:"));
+        assert!(section_re.is_match("commands:"));
+        assert!(section_re.is_match("COMMANDS:"));
+        assert!(section_re.is_match("Subcommands:"));
+        assert!(section_re.is_match("Available Commands:"));
+    }
+
+    #[test]
+    fn default_pattern_matches_entry() {
+        let patterns = Config::default_subcommand_patterns();
+        let entry_re = Regex::new(&patterns[0].entry).unwrap();
+
+        // Standard 2-4 space indent
+        assert!(entry_re.is_match("  build    Compile the project"));
+        assert!(entry_re.is_match("   test    Run the tests"));
+        assert!(entry_re.is_match("    run    Execute the binary"));
+    }
+
+    #[test]
+    fn gh_pattern_matches_colon_entries() {
+        let patterns = Config::default_subcommand_patterns();
+        let section_re = Regex::new(&patterns[2].section).unwrap();
+        let entry_re = Regex::new(&patterns[2].entry).unwrap();
+
+        assert!(section_re.is_match("CORE COMMANDS"));
+        assert!(section_re.is_match("ADDITIONAL COMMANDS"));
+
+        assert!(entry_re.is_match("  auth:          Authenticate with GitHub"));
+        assert!(entry_re.is_match("  pr:            Manage pull requests"));
+    }
+
+    // ========================================
+    // Help flag priority tests
+    // ========================================
+
+    #[test]
+    fn generic_fallback_flags() {
+        let config = Config::default();
+        let flags = config.get_help_flags("unknown-tool");
+
+        assert_eq!(flags.len(), 2);
+        assert!(flags.contains(&"{cmd} --help".to_string()));
+        assert!(flags.contains(&"{cmd} -h".to_string()));
+    }
+
+    #[test]
+    fn user_config_takes_precedence() {
+        let mut config = Config::default();
+        config.tools.insert(
+            "mytool".to_string(),
+            ToolConfig {
+                help_flags: vec!["mytool help".to_string()],
+            },
+        );
+
+        let flags = config.get_help_flags("mytool");
+        assert_eq!(flags.len(), 1);
+        assert_eq!(flags[0], "mytool help");
+    }
+
+    #[test]
+    fn subcommand_generic_fallback() {
+        let config = Config::default();
+        let flags = config.get_subcommand_help_flags("unknown-tool");
+
+        assert_eq!(flags.len(), 3);
+        assert!(flags.contains(&"{cmd} --help".to_string()));
+        assert!(flags.contains(&"{base} help {sub}".to_string()));
+        assert!(flags.contains(&"{cmd} -h".to_string()));
+    }
+
+    // ========================================
+    // KeyConfig defaults tests
+    // ========================================
+
+    #[test]
+    fn key_config_apply_defaults_fills_empty() {
+        let mut config = KeyConfig::default();
+        config.apply_defaults();
+
+        assert!(!config.quit.is_empty());
+        assert!(!config.scroll_up.is_empty());
+        assert!(!config.scroll_down.is_empty());
+        assert!(!config.half_page_up.is_empty());
+        assert!(!config.half_page_down.is_empty());
+        assert!(!config.page_up.is_empty());
+        assert!(!config.page_down.is_empty());
+        assert!(!config.top.is_empty());
+        assert!(!config.bottom.is_empty());
+        assert!(!config.search.is_empty());
+        assert!(!config.next_match.is_empty());
+        assert!(!config.prev_match.is_empty());
+        assert!(!config.find_subcommand.is_empty());
+        assert!(!config.open_command.is_empty());
+        assert!(!config.back.is_empty());
+        assert!(!config.help.is_empty());
+    }
+
+    #[test]
+    fn key_config_apply_defaults_preserves_user_values() {
+        let mut config = KeyConfig::default();
+        config.quit = vec!["x".to_string()]; // User override
+        config.apply_defaults();
+
+        // User's quit binding should be preserved
+        assert_eq!(config.quit, vec!["x".to_string()]);
+        // But other defaults should be filled
+        assert!(config.scroll_up.contains(&"k".to_string()));
+    }
+
+    #[test]
+    fn key_config_default_vim_style() {
+        let mut config = KeyConfig::default();
+        config.apply_defaults();
+
+        // Verify vim-style defaults
+        assert!(config.scroll_up.contains(&"k".to_string()));
+        assert!(config.scroll_down.contains(&"j".to_string()));
+        assert!(config.half_page_up.contains(&"Ctrl-u".to_string()));
+        assert!(config.half_page_down.contains(&"Ctrl-d".to_string()));
+        assert!(config.bottom.contains(&"G".to_string()));
+        assert!(config.search.contains(&"/".to_string()));
+    }
+}

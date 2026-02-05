@@ -1,0 +1,9 @@
+NNAAMMEE
+       test - sample man page with formatting
+
+SSYYNNOOPPSSIISS
+       test [options]
+
+DDEESSCCRRIIPPTTIIOONN
+       This is a test with bbaacckkssppaaccee formatting and ANSI codes.
+       Normal text follows.

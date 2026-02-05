@@ -182,3 +182,134 @@ fn looks_like_help(text: &str) -> bool {
         || lower.contains("--help")
         || lower.contains("synopsis")
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ========================================
+    // strip_man_formatting tests
+    // ========================================
+
+    #[test]
+    fn strip_backspace_sequences() {
+        // Bold in man pages: char + backspace + char (e.g., N\x08N = bold N)
+        let input = "N\x08NA\x08AM\x08ME\x08E";
+        let result = strip_man_formatting(input);
+        assert_eq!(result, "NAME");
+    }
+
+    #[test]
+    fn strip_underline_sequences() {
+        // Underline in man pages: underscore + backspace + char
+        let input = "_\x08f_\x08o_\x08o";
+        let result = strip_man_formatting(input);
+        assert_eq!(result, "foo");
+    }
+
+    #[test]
+    fn strip_ansi_escape_codes() {
+        let input = "\x1b[1mBold\x1b[0m and \x1b[32mgreen\x1b[0m text";
+        let result = strip_man_formatting(input);
+        assert_eq!(result, "Bold and green text");
+    }
+
+    #[test]
+    fn strip_mixed_formatting() {
+        let input = "\x1b[1mH\x08He\x08el\x08lp\x08p\x1b[0m - description";
+        let result = strip_man_formatting(input);
+        assert_eq!(result, "Help - description");
+    }
+
+    #[test]
+    fn strip_preserves_normal_text() {
+        let input = "This is normal text without any formatting";
+        let result = strip_man_formatting(input);
+        assert_eq!(result, input);
+    }
+
+    #[test]
+    fn strip_handles_empty_string() {
+        let result = strip_man_formatting("");
+        assert_eq!(result, "");
+    }
+
+    #[test]
+    fn strip_handles_newlines() {
+        let input = "Line one\nLine two\nLine three";
+        let result = strip_man_formatting(input);
+        assert_eq!(result, "Line one\nLine two\nLine three");
+    }
+
+    #[test]
+    fn strip_complex_ansi_sequences() {
+        // ANSI with multiple parameters: \x1b[38;5;196m (256-color red)
+        let input = "\x1b[38;5;196mred\x1b[0m";
+        let result = strip_man_formatting(input);
+        assert_eq!(result, "red");
+    }
+
+    // ========================================
+    // looks_like_help tests
+    // ========================================
+
+    #[test]
+    fn looks_like_help_usage_lowercase() {
+        assert!(looks_like_help("usage: program [options]"));
+    }
+
+    #[test]
+    fn looks_like_help_usage_titlecase() {
+        assert!(looks_like_help("Usage: program [options]"));
+    }
+
+    #[test]
+    fn looks_like_help_usage_uppercase() {
+        assert!(looks_like_help("USAGE: program [options]"));
+    }
+
+    #[test]
+    fn looks_like_help_options() {
+        assert!(looks_like_help("options: -h, --help"));
+    }
+
+    #[test]
+    fn looks_like_help_commands() {
+        assert!(looks_like_help("commands:\n  build  Build the project"));
+    }
+
+    #[test]
+    fn looks_like_help_double_dash_help() {
+        assert!(looks_like_help("Use --help for more information"));
+    }
+
+    #[test]
+    fn looks_like_help_synopsis() {
+        assert!(looks_like_help("SYNOPSIS\n    program [options]"));
+    }
+
+    #[test]
+    fn looks_like_help_random_text_false() {
+        assert!(!looks_like_help("This is just random text"));
+    }
+
+    #[test]
+    fn looks_like_help_error_message_false() {
+        assert!(!looks_like_help("Error: command not found"));
+    }
+
+    #[test]
+    fn looks_like_help_empty_false() {
+        assert!(!looks_like_help(""));
+    }
+
+    #[test]
+    fn looks_like_help_case_insensitive() {
+        assert!(looks_like_help("USAGE: foo"));
+        assert!(looks_like_help("Usage: foo"));
+        assert!(looks_like_help("usage: foo"));
+        assert!(looks_like_help("OPTIONS: bar"));
+        assert!(looks_like_help("Options: bar"));
+        assert!(looks_like_help("options: bar"));
+    }
+}

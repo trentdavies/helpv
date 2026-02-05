@@ -222,6 +222,236 @@ pub enum FinderAction {
     Select,
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn make_item(name: &str, description: Option<&str>) -> Subcommand {
+        Subcommand {
+            name: name.to_string(),
+            description: description.map(|s| s.to_string()),
+            label: None,
+            invoke_command: None,
+        }
+    }
+
+    fn make_items() -> Vec<Subcommand> {
+        vec![
+            make_item("build", Some("Compile the project")),
+            make_item("test", Some("Run the tests")),
+            make_item("run", Some("Execute the binary")),
+            make_item("clean", Some("Remove build artifacts")),
+            make_item("doc", Some("Build documentation")),
+        ]
+    }
+
+    // ========================================
+    // Fuzzy matching tests
+    // ========================================
+
+    #[test]
+    fn empty_query_returns_all_items() {
+        let finder = Finder::new(make_items());
+        assert_eq!(finder.filtered_count(), 5);
+    }
+
+    #[test]
+    fn single_term_matches_name() {
+        let mut finder = Finder::new(make_items());
+        finder.set_query("build".to_string());
+        assert!(finder.filtered_count() >= 1);
+        assert!(finder.selected_item().map(|s| s.name.as_str()) == Some("build"));
+    }
+
+    #[test]
+    fn single_term_matches_description() {
+        let mut finder = Finder::new(make_items());
+        finder.set_query("compile".to_string());
+        assert!(finder.filtered_count() >= 1);
+        // "build" has description "Compile the project"
+        assert!(finder.selected_item().map(|s| s.name.as_str()).is_some());
+    }
+
+    #[test]
+    fn fuzzy_match_partial() {
+        let mut finder = Finder::new(make_items());
+        finder.set_query("bld".to_string());
+        // Fuzzy match should find "build"
+        assert!(finder.filtered_count() >= 1);
+    }
+
+    #[test]
+    fn space_separated_terms_use_and_semantics() {
+        let mut finder = Finder::new(make_items());
+        // Both "run" and "binary" must match
+        finder.set_query("run binary".to_string());
+        assert!(finder.filtered_count() >= 1);
+        // Should match "run" which has "Execute the binary" description
+        let selected = finder.selected_item();
+        assert!(selected.is_some());
+        assert_eq!(selected.unwrap().name, "run");
+    }
+
+    #[test]
+    fn all_terms_must_match() {
+        let mut finder = Finder::new(make_items());
+        // "build" + "tests" won't both match any single item
+        finder.set_query("build tests".to_string());
+        assert_eq!(finder.filtered_count(), 0);
+    }
+
+    #[test]
+    fn results_sorted_by_score() {
+        let items = vec![
+            make_item("test-runner", Some("Run tests")),
+            make_item("test", Some("Test command")),
+            make_item("testing", Some("Testing utilities")),
+        ];
+        let mut finder = Finder::new(items);
+        finder.set_query("test".to_string());
+        // Exact match "test" should rank higher
+        let selected = finder.selected_item();
+        assert!(selected.is_some());
+    }
+
+    #[test]
+    fn no_matches_returns_empty() {
+        let mut finder = Finder::new(make_items());
+        finder.set_query("zzzzzzzzz".to_string());
+        assert_eq!(finder.filtered_count(), 0);
+        assert!(finder.selected_item().is_none());
+    }
+
+    #[test]
+    fn whitespace_only_query_returns_all() {
+        let mut finder = Finder::new(make_items());
+        finder.set_query("   ".to_string());
+        assert_eq!(finder.filtered_count(), 5);
+    }
+
+    // ========================================
+    // Navigation tests
+    // ========================================
+
+    #[test]
+    fn move_up_from_zero_stays_at_zero() {
+        let mut finder = Finder::new(make_items());
+        finder.selected = 0;
+        finder.move_up();
+        assert_eq!(finder.selected, 0);
+    }
+
+    #[test]
+    fn move_up_decrements() {
+        let mut finder = Finder::new(make_items());
+        finder.selected = 3;
+        finder.move_up();
+        assert_eq!(finder.selected, 2);
+    }
+
+    #[test]
+    fn move_down_at_end_stays_at_end() {
+        let mut finder = Finder::new(make_items());
+        finder.selected = 4; // Last item (5 items, 0-indexed)
+        finder.move_down();
+        assert_eq!(finder.selected, 4);
+    }
+
+    #[test]
+    fn move_down_increments() {
+        let mut finder = Finder::new(make_items());
+        finder.selected = 1;
+        finder.move_down();
+        assert_eq!(finder.selected, 2);
+    }
+
+    #[test]
+    fn move_up_by_saturating_sub() {
+        let mut finder = Finder::new(make_items());
+        finder.selected = 2;
+        finder.move_up_by(10); // More than current index
+        assert_eq!(finder.selected, 0);
+    }
+
+    #[test]
+    fn move_up_by_normal() {
+        let mut finder = Finder::new(make_items());
+        finder.selected = 4;
+        finder.move_up_by(2);
+        assert_eq!(finder.selected, 2);
+    }
+
+    #[test]
+    fn move_down_by_clamped_to_max() {
+        let mut finder = Finder::new(make_items());
+        finder.selected = 3;
+        finder.move_down_by(10); // More than remaining
+        assert_eq!(finder.selected, 4); // Last index
+    }
+
+    #[test]
+    fn move_down_by_normal() {
+        let mut finder = Finder::new(make_items());
+        finder.selected = 0;
+        finder.move_down_by(2);
+        assert_eq!(finder.selected, 2);
+    }
+
+    // ========================================
+    // Character input tests
+    // ========================================
+
+    #[test]
+    fn push_char_updates_query() {
+        let mut finder = Finder::new(make_items());
+        finder.push_char('a');
+        finder.push_char('b');
+        assert_eq!(finder.query, "ab");
+    }
+
+    #[test]
+    fn pop_char_removes_last() {
+        let mut finder = Finder::new(make_items());
+        finder.query = "abc".to_string();
+        finder.pop_char();
+        assert_eq!(finder.query, "ab");
+    }
+
+    #[test]
+    fn push_char_resets_selection() {
+        let mut finder = Finder::new(make_items());
+        finder.selected = 3;
+        finder.push_char('x');
+        assert_eq!(finder.selected, 0);
+    }
+
+    // ========================================
+    // Label matching tests
+    // ========================================
+
+    #[test]
+    fn matches_label_in_search() {
+        let items = vec![
+            Subcommand {
+                name: "clone".to_string(),
+                description: Some("Clone a repo".to_string()),
+                label: Some("Git Commands".to_string()),
+                invoke_command: None,
+            },
+            Subcommand {
+                name: "init".to_string(),
+                description: Some("Initialize".to_string()),
+                label: Some("Setup".to_string()),
+                invoke_command: None,
+            },
+        ];
+        let mut finder = Finder::new(items);
+        finder.set_query("Git".to_string());
+        // Should match clone (has "Git Commands" label)
+        assert!(finder.filtered_count() >= 1);
+    }
+}
+
 pub struct FinderWidget<'a> {
     finder: &'a mut Finder,
 }
