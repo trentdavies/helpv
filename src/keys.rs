@@ -17,6 +17,7 @@ pub enum Action {
     NextMatch,
     PrevMatch,
     OpenFinder,
+    OpenCommand,
     Back,
     ShowHelp,
 }
@@ -93,6 +94,9 @@ impl KeyHandler {
         }
         if self.config.find_subcommand.iter().any(|k| matches_key(k, &key_str, &key)) {
             return Some(Action::OpenFinder);
+        }
+        if self.config.open_command.iter().any(|k| matches_key(k, &key_str, &key)) {
+            return Some(Action::OpenCommand);
         }
         if self.config.back.iter().any(|k| matches_key(k, &key_str, &key)) {
             return Some(Action::Back);

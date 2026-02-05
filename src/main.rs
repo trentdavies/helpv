@@ -6,6 +6,7 @@ mod history;
 mod keys;
 mod pager;
 mod parser;
+mod switcher;
 
 use anyhow::Result;
 use clap::Parser;

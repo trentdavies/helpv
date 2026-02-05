@@ -328,6 +328,7 @@ impl Widget for HelpOverlay {
     f            Open subcommand finder
     Enter        Select subcommand
     Backspace    Go back to parent
+    o            Open different command
 
   General:
     ?            Show this help

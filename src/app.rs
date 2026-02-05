@@ -11,6 +11,7 @@ use crate::{
     keys::{Action, KeyHandler},
     pager::{HelpOverlay, Pager, PagerWidget, SearchInput},
     parser::{parse_subcommands, Subcommand},
+    switcher::{CommandSwitcher, SwitcherAction, SwitcherWidget},
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -18,6 +19,7 @@ pub enum AppState {
     Paging,
     Searching,
     Finding,
+    Switching,
     Help,
 }
 
@@ -25,7 +27,9 @@ pub struct App {
     pub state: AppState,
     pub pager: Pager,
     pub finder: Option<Finder>,
+    pub switcher: Option<CommandSwitcher>,
     pub history: History,
+    pub command_history: Vec<String>,
     pub config: Config,
     pub current_command: Vec<String>,
     pub subcommands: Vec<Subcommand>,
@@ -40,12 +44,15 @@ impl App {
         let help_text = fetch_help(&command, &config)?;
         let subcommands = parse_subcommands(&help_text, &config);
         let key_handler = KeyHandler::new(config.keys.clone());
+        let initial_cmd = command[0].clone();
 
         Ok(Self {
             state: AppState::Paging,
             pager: Pager::new(help_text),
             finder: None,
+            switcher: None,
             history: History::new(),
+            command_history: vec![initial_cmd],
             config,
             current_command: command,
             subcommands,
@@ -86,6 +93,11 @@ impl App {
                     frame.render_widget(FinderWidget::new(finder), area);
                 }
             }
+            AppState::Switching => {
+                if let Some(ref switcher) = self.switcher {
+                    frame.render_widget(SwitcherWidget::new(switcher), area);
+                }
+            }
             AppState::Help => {
                 frame.render_widget(HelpOverlay, area);
             }
@@ -113,6 +125,7 @@ impl App {
             AppState::Paging => self.handle_paging_key(key),
             AppState::Searching => self.handle_searching_key(key),
             AppState::Finding => self.handle_finding_key(key),
+            AppState::Switching => self.handle_switching_key(key),
             AppState::Help => self.handle_help_key(key),
         }
     }
@@ -167,6 +180,11 @@ impl App {
                         self.error_message = Some("No subcommands found".to_string());
                     }
                 }
+                Action::OpenCommand => {
+                    self.switcher = Some(CommandSwitcher::new(self.command_history.clone()));
+                    self.state = AppState::Switching;
+                    self.key_handler.reset_pending();
+                }
                 Action::Back => {
                     self.go_back()?;
                 }
@@ -218,6 +236,22 @@ impl App {
                     }
                 }
                 FinderAction::None => {}
+            }
+        }
+        Ok(())
+    }
+
+    fn handle_switching_key(&mut self, key: KeyEvent) -> Result<()> {
+        if let Some(ref mut switcher) = self.switcher {
+            match switcher.handle_key(key) {
+                SwitcherAction::Close => {
+                    self.switcher = None;
+                    self.state = AppState::Paging;
+                }
+                SwitcherAction::Select(cmd) => {
+                    self.switch_to_command(&cmd)?;
+                }
+                SwitcherAction::None => {}
             }
         }
         Ok(())
@@ -280,6 +314,35 @@ impl App {
                 }
             }
         }
+        Ok(())
+    }
+
+    fn switch_to_command(&mut self, cmd: &str) -> Result<()> {
+        let new_command = vec![cmd.to_string()];
+
+        match fetch_help(&new_command, &self.config) {
+            Ok(help_text) => {
+                // Add to command history if not already present
+                if !self.command_history.contains(&cmd.to_string()) {
+                    self.command_history.push(cmd.to_string());
+                }
+
+                // Clear navigation history since we're switching to a new command
+                self.history = History::new();
+
+                self.subcommands = parse_subcommands(&help_text, &self.config);
+                self.pager = Pager::new(help_text);
+                self.current_command = new_command;
+                self.switcher = None;
+                self.state = AppState::Paging;
+            }
+            Err(e) => {
+                self.error_message = Some(format!("Could not fetch help for '{}': {}", cmd, e));
+                self.switcher = None;
+                self.state = AppState::Paging;
+            }
+        }
+
         Ok(())
     }
 }

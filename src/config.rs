@@ -40,6 +40,7 @@ pub struct KeyConfig {
     pub next_match: Vec<String>,
     pub prev_match: Vec<String>,
     pub find_subcommand: Vec<String>,
+    pub open_command: Vec<String>,
     pub back: Vec<String>,
     pub help: Vec<String>,
 }
@@ -145,6 +146,9 @@ impl KeyConfig {
         }
         if self.find_subcommand.is_empty() {
             self.find_subcommand = vec!["f".to_string()];
+        }
+        if self.open_command.is_empty() {
+            self.open_command = vec!["o".to_string()];
         }
         if self.back.is_empty() {
             self.back = vec!["Backspace".to_string()];
