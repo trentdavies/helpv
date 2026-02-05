@@ -9,7 +9,14 @@ pub fn fetch_help(cmd: &[String], config: &Config) -> Result<String> {
     }
 
     let base_cmd = &cmd[0];
-    let help_flags = config.get_help_flags(base_cmd);
+    let is_subcommand = cmd.len() > 1;
+
+    // Choose appropriate help flags based on whether this is a subcommand
+    let help_flags = if is_subcommand {
+        config.get_subcommand_help_flags(base_cmd)
+    } else {
+        config.get_help_flags(base_cmd)
+    };
 
     for flag_pattern in &help_flags {
         if let Some(output) = try_help_pattern(cmd, flag_pattern)
@@ -30,10 +37,40 @@ pub fn fetch_help(cmd: &[String], config: &Config) -> Result<String> {
     ))
 }
 
+/// Fetch help using a specific invoke command template
+pub fn fetch_help_with_invoke(base_cmd: &str, item_name: &str, invoke_template: &str) -> Result<String> {
+    let cmd_str = invoke_template
+        .replace("{base}", base_cmd)
+        .replace("{name}", item_name);
+
+    let parts: Vec<&str> = cmd_str.split_whitespace().collect();
+    if parts.is_empty() {
+        return Err(anyhow!("Invalid invoke command"));
+    }
+
+    let result = Command::new(parts[0])
+        .args(&parts[1..])
+        .output()?;
+
+    // Some tools write help to stderr
+    let stdout = String::from_utf8_lossy(&result.stdout);
+    let stderr = String::from_utf8_lossy(&result.stderr);
+
+    if !stdout.trim().is_empty() {
+        Ok(stdout.into_owned())
+    } else if !stderr.trim().is_empty() && result.status.success() {
+        Ok(stderr.into_owned())
+    } else if !stderr.trim().is_empty() && looks_like_help(&stderr) {
+        Ok(stderr.into_owned())
+    } else {
+        Err(anyhow!("Could not fetch help for '{} {}'", base_cmd, item_name))
+    }
+}
+
 fn try_help_pattern(cmd: &[String], pattern: &str) -> Option<String> {
     let full_cmd = cmd.join(" ");
     let base = &cmd[0];
-    let subcmd = if cmd.len() > 1 {
+    let sub = if cmd.len() > 1 {
         cmd[1..].join(" ")
     } else {
         String::new()
@@ -42,7 +79,7 @@ fn try_help_pattern(cmd: &[String], pattern: &str) -> Option<String> {
     let expanded = pattern
         .replace("{cmd}", &full_cmd)
         .replace("{base}", base)
-        .replace("{subcmd}", &subcmd);
+        .replace("{sub}", &sub);
 
     let parts: Vec<&str> = expanded.split_whitespace().collect();
     if parts.is_empty() {

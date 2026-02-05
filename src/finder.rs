@@ -15,6 +15,8 @@ pub struct Finder {
     pub query: String,
     filtered: Vec<(u16, usize)>, // (score, index)
     pub selected: usize,
+    pub scroll_offset: usize,
+    visible_height: usize,
     matcher: Matcher,
 }
 
@@ -25,6 +27,8 @@ impl Finder {
             query: String::new(),
             filtered: Vec::new(),
             selected: 0,
+            scroll_offset: 0,
+            visible_height: 10, // Default, updated during render
             matcher: Matcher::new(NucleoConfig::DEFAULT),
         };
         finder.update_filtered();
@@ -36,18 +40,21 @@ impl Finder {
         self.query = query;
         self.update_filtered();
         self.selected = 0;
+        self.scroll_offset = 0;
     }
 
     pub fn push_char(&mut self, c: char) {
         self.query.push(c);
         self.update_filtered();
         self.selected = 0;
+        self.scroll_offset = 0;
     }
 
     pub fn pop_char(&mut self) {
         self.query.pop();
         self.update_filtered();
         self.selected = 0;
+        self.scroll_offset = 0;
     }
 
     fn update_filtered(&mut self) {
@@ -92,6 +99,19 @@ impl Finder {
         }
     }
 
+    pub fn move_up_by(&mut self, n: usize) {
+        self.selected = self.selected.saturating_sub(n);
+    }
+
+    pub fn move_down_by(&mut self, n: usize) {
+        let max_idx = self.filtered.len().saturating_sub(1);
+        self.selected = (self.selected + n).min(max_idx);
+    }
+
+    pub fn set_visible_height(&mut self, h: usize) {
+        self.visible_height = h;
+    }
+
     pub fn selected_item(&self) -> Option<&Subcommand> {
         self.filtered
             .get(self.selected)
@@ -117,11 +137,11 @@ impl Finder {
                     FinderAction::None
                 }
             }
-            KeyCode::Up | KeyCode::Char('k') if key.modifiers.is_empty() => {
+            KeyCode::Up if key.modifiers.is_empty() => {
                 self.move_up();
                 FinderAction::None
             }
-            KeyCode::Down | KeyCode::Char('j') if key.modifiers.is_empty() => {
+            KeyCode::Down if key.modifiers.is_empty() => {
                 self.move_down();
                 FinderAction::None
             }
@@ -131,6 +151,22 @@ impl Finder {
             }
             KeyCode::Char('n') if key.modifiers.contains(KeyModifiers::CONTROL) => {
                 self.move_down();
+                FinderAction::None
+            }
+            KeyCode::Char('u') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                self.move_up_by(self.visible_height / 2);
+                FinderAction::None
+            }
+            KeyCode::Char('d') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                self.move_down_by(self.visible_height / 2);
+                FinderAction::None
+            }
+            KeyCode::Char('b') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                self.move_up_by(self.visible_height);
+                FinderAction::None
+            }
+            KeyCode::Char('f') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                self.move_down_by(self.visible_height);
                 FinderAction::None
             }
             KeyCode::Backspace => {
@@ -154,20 +190,20 @@ pub enum FinderAction {
 }
 
 pub struct FinderWidget<'a> {
-    finder: &'a Finder,
+    finder: &'a mut Finder,
 }
 
 impl<'a> FinderWidget<'a> {
-    pub fn new(finder: &'a Finder) -> Self {
+    pub fn new(finder: &'a mut Finder) -> Self {
         Self { finder }
     }
 }
 
 impl Widget for FinderWidget<'_> {
     fn render(self, area: Rect, buf: &mut Buffer) {
-        // Calculate overlay dimensions
-        let width = (area.width * 2 / 3).min(60).max(30);
-        let height = (area.height * 2 / 3).min(20).max(8);
+        // Use most of the screen - 90% width and height with reasonable minimums
+        let width = (area.width * 9 / 10).max(40);
+        let height = (area.height * 9 / 10).max(10);
 
         let x = area.x + (area.width - width) / 2;
         let y = area.y + (area.height - height) / 2;
@@ -201,21 +237,36 @@ impl Widget for FinderWidget<'_> {
         let sep_span = Span::styled(separator, Style::default().fg(Color::DarkGray));
         buf.set_span(inner.x, inner.y + 1, &sep_span, inner.width);
 
-        // Draw items
+        // Draw items with scrolling
         let items_start_y = inner.y + 2;
         let items_height = inner.height.saturating_sub(2) as usize;
 
-        for (i, (_, idx)) in self
+        // Update visible height for page navigation
+        self.finder.set_visible_height(items_height);
+
+        // Adjust scroll offset to keep selection visible
+        if self.finder.selected < self.finder.scroll_offset {
+            self.finder.scroll_offset = self.finder.selected;
+        } else if self.finder.selected >= self.finder.scroll_offset + items_height {
+            self.finder.scroll_offset = self.finder.selected.saturating_sub(items_height - 1);
+        }
+
+        let scroll_offset = self.finder.scroll_offset;
+
+        // Render visible items
+        for (render_idx, (_, idx)) in self
             .finder
             .filtered
             .iter()
+            .skip(scroll_offset)
             .take(items_height)
             .enumerate()
         {
             let item = &self.finder.items[*idx];
-            let y = items_start_y + i as u16;
+            let y = items_start_y + render_idx as u16;
+            let actual_idx = scroll_offset + render_idx;
 
-            let is_selected = i == self.finder.selected;
+            let is_selected = actual_idx == self.finder.selected;
             let style = if is_selected {
                 Style::default()
                     .fg(Color::Black)
@@ -225,8 +276,22 @@ impl Widget for FinderWidget<'_> {
                 Style::default().fg(Color::White)
             };
 
-            // Format: name - description (truncated)
+            // Format: [label] name - description (truncated)
             let mut line = if is_selected { "▶ " } else { "  " }.to_string();
+
+            // Show category label for discovered items
+            if let Some(ref label) = item.label {
+                line.push('[');
+                // Abbreviate long labels
+                let short_label = if label.len() > 8 {
+                    &label[..8]
+                } else {
+                    label
+                };
+                line.push_str(short_label);
+                line.push_str("] ");
+            }
+
             line.push_str(&item.name);
 
             if let Some(ref desc) = item.description {

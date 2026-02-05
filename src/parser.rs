@@ -6,6 +6,10 @@ use crate::config::Config;
 pub struct Subcommand {
     pub name: String,
     pub description: Option<String>,
+    /// Category label for discovered items (e.g., "All Commands", "Guides")
+    pub label: Option<String>,
+    /// Custom invoke command for discovered items (e.g., "git help {name}")
+    pub invoke_command: Option<String>,
 }
 
 pub fn parse_subcommands(help_text: &str, config: &Config) -> Vec<Subcommand> {
@@ -62,7 +66,12 @@ pub fn parse_subcommands(help_text: &str, config: &Config) -> Vec<Subcommand> {
 
                     // Avoid duplicates
                     if !subcommands.iter().any(|s: &Subcommand| s.name == name) {
-                        subcommands.push(Subcommand { name, description });
+                        subcommands.push(Subcommand {
+                            name,
+                            description,
+                            label: None,
+                            invoke_command: None,
+                        });
                     }
                 }
             }
@@ -139,7 +148,12 @@ fn parse_git_style(help_text: &str) -> Vec<Subcommand> {
                 let description = captures.get(2).map(|m| m.as_str().trim().to_string());
 
                 if !subcommands.iter().any(|s: &Subcommand| s.name == name) {
-                    subcommands.push(Subcommand { name, description });
+                    subcommands.push(Subcommand {
+                        name,
+                        description,
+                        label: None,
+                        invoke_command: None,
+                    });
                 }
             }
         }
@@ -195,7 +209,12 @@ fn parse_aggressive(help_text: &str) -> Vec<Subcommand> {
                 if !name.starts_with('-')
                     && !subcommands.iter().any(|s: &Subcommand| s.name == name)
                 {
-                    subcommands.push(Subcommand { name, description });
+                    subcommands.push(Subcommand {
+                        name,
+                        description,
+                        label: None,
+                        invoke_command: None,
+                    });
                 }
             }
         }

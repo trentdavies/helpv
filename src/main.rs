@@ -7,6 +7,7 @@ mod keys;
 mod pager;
 mod parser;
 mod switcher;
+mod toolpacks;
 
 use anyhow::Result;
 use clap::Parser;

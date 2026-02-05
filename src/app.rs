@@ -5,13 +5,14 @@ use std::time::Duration;
 
 use crate::{
     config::Config,
-    fetcher::fetch_help,
+    fetcher::{fetch_help, fetch_help_with_invoke},
     finder::{Finder, FinderAction, FinderWidget},
     history::History,
     keys::{Action, KeyHandler},
     pager::{HelpOverlay, Pager, PagerWidget, SearchInput},
     parser::{parse_subcommands, Subcommand},
     switcher::{CommandSwitcher, SwitcherAction, SwitcherWidget},
+    toolpacks::ToolPacks,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -42,7 +43,13 @@ pub struct App {
 impl App {
     pub fn new(command: Vec<String>, config: Config) -> Result<Self> {
         let help_text = fetch_help(&command, &config)?;
-        let subcommands = parse_subcommands(&help_text, &config);
+        let mut subcommands = parse_subcommands(&help_text, &config);
+
+        // Run discovery for the base command and merge results
+        let base_cmd = &command[0];
+        let discovered = discover_items(base_cmd, &config.toolpacks);
+        merge_discovered_items(&mut subcommands, discovered);
+
         let key_handler = KeyHandler::new(config.keys.clone());
         let initial_cmd = command[0].clone();
 
@@ -89,7 +96,7 @@ impl App {
                 frame.render_widget(SearchInput::new(&self.search_input), status_area);
             }
             AppState::Finding => {
-                if let Some(ref finder) = self.finder {
+                if let Some(ref mut finder) = self.finder {
                     frame.render_widget(FinderWidget::new(finder), area);
                 }
             }
@@ -231,8 +238,8 @@ impl App {
                 }
                 FinderAction::Select => {
                     if let Some(item) = finder.selected_item() {
-                        let subcmd = item.name.clone();
-                        self.drill_into_subcommand(&subcmd)?;
+                        let item_clone = item.clone();
+                        self.drill_into_item(&item_clone)?;
                     }
                 }
                 FinderAction::None => {}
@@ -268,23 +275,47 @@ impl App {
         Ok(())
     }
 
-    fn drill_into_subcommand(&mut self, subcmd: &str) -> Result<()> {
+    fn drill_into_item(&mut self, item: &Subcommand) -> Result<()> {
         // Save current state to history
         self.history.push(
             self.current_command.clone(),
             self.pager.scroll,
         );
 
-        // Build new command
-        let mut new_cmd = self.current_command.clone();
-        new_cmd.push(subcmd.to_string());
+        let base_cmd = &self.current_command[0];
 
-        // Fetch help for new command
-        match fetch_help(&new_cmd, &self.config) {
+        // Check if this item has a custom invoke command
+        let result = if let Some(ref invoke_cmd) = item.invoke_command {
+            // Use custom invoke command (e.g., for git guides: "git help {name}")
+            fetch_help_with_invoke(base_cmd, &item.name, invoke_cmd)
+        } else {
+            // Standard subcommand navigation
+            let mut new_cmd = self.current_command.clone();
+            new_cmd.push(item.name.clone());
+            fetch_help(&new_cmd, &self.config)
+        };
+
+        match result {
             Ok(help_text) => {
-                self.subcommands = parse_subcommands(&help_text, &self.config);
+                let mut subcommands = parse_subcommands(&help_text, &self.config);
+
+                // If using custom invoke, we stay at the same command level
+                // Otherwise, we're drilling into a subcommand
+                if item.invoke_command.is_some() {
+                    // For custom invokes (like guides), don't change current_command
+                    // but clear subcommands since we're viewing a different kind of content
+                } else {
+                    // Run discovery for subcommands too
+                    let discovered = discover_items(base_cmd, &self.config.toolpacks);
+                    merge_discovered_items(&mut subcommands, discovered);
+
+                    let mut new_cmd = self.current_command.clone();
+                    new_cmd.push(item.name.clone());
+                    self.current_command = new_cmd;
+                }
+
+                self.subcommands = subcommands;
                 self.pager = Pager::new(help_text);
-                self.current_command = new_cmd;
                 self.finder = None;
                 self.state = AppState::Paging;
             }
@@ -304,7 +335,12 @@ impl App {
         if let Some(entry) = self.history.pop() {
             match fetch_help(&entry.command, &self.config) {
                 Ok(help_text) => {
-                    self.subcommands = parse_subcommands(&help_text, &self.config);
+                    let mut subcommands = parse_subcommands(&help_text, &self.config);
+                    let base_cmd = &entry.command[0];
+                    let discovered = discover_items(base_cmd, &self.config.toolpacks);
+                    merge_discovered_items(&mut subcommands, discovered);
+
+                    self.subcommands = subcommands;
                     self.pager = Pager::new(help_text);
                     self.pager.scroll = entry.scroll_position;
                     self.current_command = entry.command;
@@ -330,7 +366,11 @@ impl App {
                 // Clear navigation history since we're switching to a new command
                 self.history = History::new();
 
-                self.subcommands = parse_subcommands(&help_text, &self.config);
+                let mut subcommands = parse_subcommands(&help_text, &self.config);
+                let discovered = discover_items(cmd, &self.config.toolpacks);
+                merge_discovered_items(&mut subcommands, discovered);
+
+                self.subcommands = subcommands;
                 self.pager = Pager::new(help_text);
                 self.current_command = new_command;
                 self.switcher = None;
@@ -344,6 +384,33 @@ impl App {
         }
 
         Ok(())
+    }
+}
+
+/// Run discovery sources for a tool and return discovered items as Subcommands
+fn discover_items(base_cmd: &str, toolpacks: &ToolPacks) -> Vec<Subcommand> {
+    let Some(pack) = toolpacks.get(base_cmd) else {
+        return Vec::new();
+    };
+
+    pack.discover_items(base_cmd)
+        .into_iter()
+        .map(|item| Subcommand {
+            name: item.name,
+            description: item.description,
+            label: Some(item.label),
+            invoke_command: Some(item.invoke_template),
+        })
+        .collect()
+}
+
+/// Merge discovered items into the subcommands list, avoiding duplicates
+fn merge_discovered_items(subcommands: &mut Vec<Subcommand>, discovered: Vec<Subcommand>) {
+    for item in discovered {
+        // Skip if there's already a subcommand with this name
+        if !subcommands.iter().any(|s| s.name == item.name) {
+            subcommands.push(item);
+        }
     }
 }
 

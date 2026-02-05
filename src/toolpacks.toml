@@ -1,0 +1,464 @@
+# Tool Packs - Configuration for CLI help discovery
+#
+# Each tool can define:
+# - help: Commands to try for base help
+# - subcommand: Commands to try for subcommand help
+# - discover: Additional discovery sources for hidden commands/guides
+
+# ==============================================================================
+# Version Control
+# ==============================================================================
+
+[git]
+help = ["git --help"]
+subcommand = ["git help {sub}", "git {sub} --help"]
+
+[[git.discover]]
+label = "All Commands"
+run = "git help -a"
+section = "^Main Porcelain Commands"
+pattern = "^   ([a-z][a-z0-9-]*)\\s*(.*)$"
+invoke = "git help {name}"
+
+[[git.discover]]
+label = "Guides"
+run = "git help -g"
+section = "^The Git concept guides"
+pattern = "^   (\\w+)\\s+(.*)$"
+invoke = "git help {name}"
+
+[gh]
+help = ["gh --help"]
+subcommand = ["{base} {sub} --help", "{base} help {sub}"]
+
+[hg]
+help = ["hg --help"]
+subcommand = ["hg help {sub}", "hg {sub} --help"]
+
+[svn]
+help = ["svn --help"]
+subcommand = ["svn help {sub}", "svn {sub} --help"]
+
+# ==============================================================================
+# Container & Orchestration
+# ==============================================================================
+
+[docker]
+help = ["docker --help"]
+subcommand = ["docker {sub} --help", "docker help {sub}"]
+
+[[docker.discover]]
+label = "Management Commands"
+run = "docker --help"
+section = "^Management Commands:"
+pattern = "^  ([a-z]+)\\*?\\s+(.*)$"
+invoke = "docker {name} --help"
+
+[podman]
+help = ["podman --help"]
+subcommand = ["podman {sub} --help", "podman help {sub}"]
+
+[kubectl]
+help = ["kubectl --help"]
+subcommand = ["kubectl {sub} --help", "kubectl help {sub}"]
+
+[[kubectl.discover]]
+label = "All Commands"
+run = "kubectl --help"
+section = "^Basic Commands"
+pattern = "^  ([a-z][a-z0-9-]*)\\s+(.*)$"
+invoke = "kubectl {name} --help"
+
+[helm]
+help = ["helm --help"]
+subcommand = ["helm {sub} --help", "helm help {sub}"]
+
+[minikube]
+help = ["minikube --help"]
+subcommand = ["minikube {sub} --help", "minikube help {sub}"]
+
+[kind]
+help = ["kind --help"]
+subcommand = ["kind {sub} --help", "kind help {sub}"]
+
+[k3d]
+help = ["k3d --help"]
+subcommand = ["k3d {sub} --help", "k3d help {sub}"]
+
+[docker-compose]
+help = ["docker-compose --help"]
+subcommand = ["docker-compose {sub} --help", "docker-compose help {sub}"]
+
+# ==============================================================================
+# Cloud CLIs
+# ==============================================================================
+
+[aws]
+help = ["aws help"]
+subcommand = ["aws {sub} help"]
+
+[[aws.discover]]
+label = "Services"
+run = "aws help"
+section = "^AVAILABLE SERVICES"
+pattern = "^       o ([a-z][a-z0-9-]*)$"
+invoke = "aws {name} help"
+
+[gcloud]
+help = ["gcloud --help"]
+subcommand = ["gcloud {sub} --help"]
+
+[[gcloud.discover]]
+label = "Command Groups"
+run = "gcloud --help"
+section = "^GROUPS$"
+pattern = "^\\s+([a-z][a-z0-9-]*)$"
+invoke = "gcloud {name} --help"
+
+[az]
+help = ["az --help"]
+subcommand = ["az {sub} --help", "az {sub} -h"]
+
+[[az.discover]]
+label = "Subgroups"
+run = "az --help"
+section = "^Subgroups:"
+pattern = "^\\s+([a-z][a-z0-9-]*)\\s+:?\\s*(.*)$"
+invoke = "az {name} --help"
+
+[firebase]
+help = ["firebase --help"]
+subcommand = ["firebase {sub} --help"]
+
+[flyctl]
+help = ["flyctl --help", "fly --help"]
+subcommand = ["flyctl {sub} --help", "fly {sub} --help"]
+
+[heroku]
+help = ["heroku --help"]
+subcommand = ["heroku {sub} --help", "heroku help {sub}"]
+
+[vercel]
+help = ["vercel --help"]
+subcommand = ["vercel {sub} --help"]
+
+[netlify]
+help = ["netlify --help"]
+subcommand = ["netlify {sub} --help"]
+
+# ==============================================================================
+# Package Managers - JavaScript
+# ==============================================================================
+
+[npm]
+help = ["npm --help"]
+subcommand = ["npm help {sub}", "npm {sub} --help"]
+
+[[npm.discover]]
+label = "All Commands"
+run = "npm help"
+section = "^All commands:"
+pattern = "^\\s+([a-z][a-z0-9-]*)\\s*$"
+invoke = "npm help {name}"
+
+[yarn]
+help = ["yarn --help"]
+subcommand = ["yarn {sub} --help", "yarn help"]
+
+[pnpm]
+help = ["pnpm --help"]
+subcommand = ["pnpm {sub} --help", "pnpm help {sub}"]
+
+[bun]
+help = ["bun --help"]
+subcommand = ["bun {sub} --help"]
+
+[deno]
+help = ["deno --help"]
+subcommand = ["deno {sub} --help", "deno help {sub}"]
+
+# ==============================================================================
+# Package Managers - Python
+# ==============================================================================
+
+[pip]
+help = ["pip --help"]
+subcommand = ["pip {sub} --help", "pip help {sub}"]
+
+[pip3]
+help = ["pip3 --help"]
+subcommand = ["pip3 {sub} --help", "pip3 help {sub}"]
+
+[poetry]
+help = ["poetry --help"]
+subcommand = ["poetry {sub} --help", "poetry help {sub}"]
+
+[uv]
+help = ["uv --help"]
+subcommand = ["uv {sub} --help", "uv help {sub}"]
+
+[pipx]
+help = ["pipx --help"]
+subcommand = ["pipx {sub} --help"]
+
+[conda]
+help = ["conda --help"]
+subcommand = ["conda {sub} --help", "conda help {sub}"]
+
+# ==============================================================================
+# Rust Toolchain
+# ==============================================================================
+
+[cargo]
+help = ["cargo --help"]
+subcommand = ["cargo help {sub}", "cargo {sub} --help"]
+
+[[cargo.discover]]
+label = "Built-in Commands"
+run = "cargo --list"
+pattern = "^\\s+([a-z][a-z0-9-]*)\\s*(.*)$"
+invoke = "cargo help {name}"
+
+[rustup]
+help = ["rustup --help"]
+subcommand = ["rustup {sub} --help", "rustup help {sub}"]
+
+[rustc]
+help = ["rustc --help"]
+subcommand = ["rustc {sub} --help"]
+
+# ==============================================================================
+# Go Toolchain
+# ==============================================================================
+
+[go]
+help = ["go help"]
+subcommand = ["go help {sub}"]
+
+[[go.discover]]
+label = "All Commands"
+run = "go help"
+section = "^The commands are:"
+pattern = "^\\s+([a-z]+)\\s+(.*)$"
+invoke = "go help {name}"
+
+[[go.discover]]
+label = "Topics"
+run = "go help"
+section = "^Additional help topics:"
+pattern = "^\\s+([a-z]+)\\s+(.*)$"
+invoke = "go help {name}"
+
+# ==============================================================================
+# Infrastructure
+# ==============================================================================
+
+[terraform]
+help = ["terraform --help", "terraform -help"]
+subcommand = ["terraform {sub} --help", "terraform {sub} -help"]
+
+[pulumi]
+help = ["pulumi --help"]
+subcommand = ["pulumi {sub} --help"]
+
+[ansible]
+help = ["ansible --help"]
+subcommand = ["ansible {sub} --help"]
+
+[ansible-playbook]
+help = ["ansible-playbook --help"]
+subcommand = ["ansible-playbook {sub} --help"]
+
+[vagrant]
+help = ["vagrant --help"]
+subcommand = ["vagrant {sub} --help", "vagrant help {sub}"]
+
+[packer]
+help = ["packer --help"]
+subcommand = ["packer {sub} --help"]
+
+# ==============================================================================
+# macOS
+# ==============================================================================
+
+[brew]
+help = ["brew --help"]
+subcommand = ["brew help {sub}", "brew {sub} --help"]
+
+[[brew.discover]]
+label = "Commands"
+run = "brew commands"
+pattern = "^([a-z][a-z0-9-]*)$"
+invoke = "brew help {name}"
+
+[mas]
+help = ["mas --help"]
+subcommand = ["mas {sub} --help", "mas help {sub}"]
+
+# ==============================================================================
+# Task Runners & Build Tools
+# ==============================================================================
+
+[make]
+help = ["make --help"]
+subcommand = ["make --help"]
+
+[just]
+help = ["just --help"]
+subcommand = ["just --help {sub}"]
+
+[task]
+help = ["task --help"]
+subcommand = ["task {sub} --help"]
+
+[rake]
+help = ["rake --help"]
+subcommand = ["rake {sub} --help"]
+
+[gradle]
+help = ["gradle --help"]
+subcommand = ["gradle {sub} --help", "gradle help --task {sub}"]
+
+[maven]
+help = ["mvn --help"]
+subcommand = ["mvn {sub} --help", "mvn help:describe -Dcmd={sub}"]
+
+[bazel]
+help = ["bazel --help"]
+subcommand = ["bazel help {sub}"]
+
+[buck]
+help = ["buck --help"]
+subcommand = ["buck {sub} --help"]
+
+# ==============================================================================
+# Testing & Quality
+# ==============================================================================
+
+[pytest]
+help = ["pytest --help"]
+subcommand = ["pytest --help"]
+
+[jest]
+help = ["jest --help"]
+subcommand = ["jest --help"]
+
+[vitest]
+help = ["vitest --help"]
+subcommand = ["vitest {sub} --help"]
+
+[eslint]
+help = ["eslint --help"]
+subcommand = ["eslint {sub} --help"]
+
+[prettier]
+help = ["prettier --help"]
+subcommand = ["prettier --help"]
+
+[ruff]
+help = ["ruff --help"]
+subcommand = ["ruff {sub} --help"]
+
+[mypy]
+help = ["mypy --help"]
+subcommand = ["mypy --help"]
+
+[clippy-driver]
+help = ["clippy-driver --help"]
+subcommand = ["clippy-driver --help"]
+
+# ==============================================================================
+# Database CLIs
+# ==============================================================================
+
+[psql]
+help = ["psql --help"]
+subcommand = ["psql --help"]
+
+[mysql]
+help = ["mysql --help"]
+subcommand = ["mysql --help"]
+
+[mongosh]
+help = ["mongosh --help"]
+subcommand = ["mongosh --help"]
+
+[redis-cli]
+help = ["redis-cli --help"]
+subcommand = ["redis-cli help {sub}"]
+
+[sqlite3]
+help = ["sqlite3 --help"]
+subcommand = ["sqlite3 --help"]
+
+# ==============================================================================
+# Network & HTTP
+# ==============================================================================
+
+[curl]
+help = ["curl --help all"]
+subcommand = ["curl --help {sub}"]
+
+[wget]
+help = ["wget --help"]
+subcommand = ["wget --help"]
+
+[httpie]
+help = ["http --help"]
+subcommand = ["http --help"]
+
+[ssh]
+help = ["ssh -h"]
+subcommand = ["ssh -h"]
+
+[rsync]
+help = ["rsync --help"]
+subcommand = ["rsync --help"]
+
+# ==============================================================================
+# Misc Dev Tools
+# ==============================================================================
+
+[jq]
+help = ["jq --help"]
+subcommand = ["jq --help"]
+
+[yq]
+help = ["yq --help"]
+subcommand = ["yq {sub} --help"]
+
+[fzf]
+help = ["fzf --help"]
+subcommand = ["fzf --help"]
+
+[ripgrep]
+help = ["rg --help"]
+subcommand = ["rg --help"]
+
+[fd]
+help = ["fd --help"]
+subcommand = ["fd --help"]
+
+[bat]
+help = ["bat --help"]
+subcommand = ["bat --help"]
+
+[exa]
+help = ["exa --help"]
+subcommand = ["exa --help"]
+
+[eza]
+help = ["eza --help"]
+subcommand = ["eza --help"]
+
+[delta]
+help = ["delta --help"]
+subcommand = ["delta --help"]
+
+[tmux]
+help = ["tmux --help", "man tmux"]
+subcommand = ["tmux --help"]
+
+[zellij]
+help = ["zellij --help"]
+subcommand = ["zellij {sub} --help"]
