@@ -3,7 +3,7 @@ use ratatui::{
     layout::{Constraint, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, Paragraph, Widget, Wrap},
+    widgets::{Block, Borders, Clear, Paragraph, Widget, Wrap},
 };
 use regex::Regex;
 
@@ -204,12 +204,12 @@ fn highlight_line(line: &str, query: &str, is_match_line: bool, is_current_match
         let match_style = if is_current_match {
             Style::default()
                 .fg(Color::Black)
-                .bg(Color::Yellow)
+                .bg(Color::Cyan)
                 .add_modifier(Modifier::BOLD)
         } else {
             Style::default()
                 .fg(Color::Black)
-                .bg(Color::LightYellow)
+                .bg(Color::Yellow)
         };
 
         spans.push(Span::styled(
@@ -343,6 +343,9 @@ impl Widget for HelpOverlay {
         let y = area.y + (area.height.saturating_sub(height as u16 + 2)) / 2;
 
         let overlay_area = Rect::new(x, y, width as u16 + 4, height as u16 + 2);
+
+        // Clear the area behind the overlay
+        Clear.render(overlay_area, buf);
 
         // Draw border
         let block = Block::default()

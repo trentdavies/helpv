@@ -71,15 +71,49 @@ impl Finder {
             return;
         }
 
-        let mut needle_buf = Vec::new();
-        let needle = Utf32Str::new(&self.query, &mut needle_buf);
+        // Split query into space-separated terms (fzf style)
+        let terms: Vec<&str> = self.query.split_whitespace().collect();
+
+        if terms.is_empty() {
+            // Query is all whitespace - show all
+            self.filtered = self
+                .items
+                .iter()
+                .enumerate()
+                .map(|(i, _)| (0, i))
+                .collect();
+            return;
+        }
 
         for (i, item) in self.items.iter().enumerate() {
-            let mut haystack_buf = Vec::new();
-            let haystack = Utf32Str::new(&item.name, &mut haystack_buf);
+            let searchable = match &item.label {
+                Some(label) => format!("{} {}", label, item.name),
+                None => item.name.clone(),
+            };
 
-            if let Some(score) = self.matcher.fuzzy_match(haystack, needle) {
-                self.filtered.push((score, i));
+            let mut haystack_buf = Vec::new();
+            let haystack = Utf32Str::new(&searchable, &mut haystack_buf);
+
+            // All terms must match (fzf AND semantics)
+            let mut all_match = true;
+            let mut total_score: u32 = 0;
+
+            for term in &terms {
+                let mut needle_buf = Vec::new();
+                let needle = Utf32Str::new(term, &mut needle_buf);
+
+                if let Some(score) = self.matcher.fuzzy_match(haystack, needle) {
+                    total_score = total_score.saturating_add(score as u32);
+                } else {
+                    all_match = false;
+                    break;
+                }
+            }
+
+            if all_match {
+                // Use u16::MAX if score overflows, otherwise cast
+                let final_score = total_score.min(u16::MAX as u32) as u16;
+                self.filtered.push((final_score, i));
             }
         }
 
