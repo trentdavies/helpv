@@ -67,6 +67,25 @@ Once inside:
 
 The parser extracts subcommands by detecting section headers (e.g., "Commands:", "Subcommands:") and parsing indented entries beneath them. This is more art than science—CLI help formats vary wildly—but the default patterns handle most common tools.
 
+## Built-in Tool Packs
+
+`helpv` ships with optimized help-fetching strategies for 25+ popular CLI tools. These handle quirks like `aws` putting `help` at the end (`aws s3 help`) or `git` preferring `git help <cmd>`.
+
+| Category | Tools |
+|----------|-------|
+| Version control | git, gh |
+| Containers | docker, kubectl, helm, podman |
+| Cloud | aws, gcloud, az |
+| JavaScript | npm, yarn, pnpm, bun |
+| Python | pip, poetry, uv |
+| Rust | cargo, rustup |
+| Go | go |
+| Infrastructure | terraform, pulumi, ansible |
+| macOS | brew |
+| Build tools | make, just, task |
+
+No configuration needed—these work out of the box. User config overrides built-ins if you need custom behavior.
+
 ## Configuration
 
 Config lives at `~/.config/helpv/config.toml`. Optional—sensible defaults work out of the box.

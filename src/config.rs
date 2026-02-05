@@ -94,15 +94,146 @@ impl Config {
     }
 
     pub fn get_help_flags(&self, tool: &str) -> Vec<String> {
+        // User config takes precedence
         if let Some(tool_config) = self.tools.get(tool) {
             return tool_config.help_flags.clone();
         }
 
+        // Check built-in tool packs
+        if let Some(flags) = Self::builtin_tool_flags(tool) {
+            return flags;
+        }
+
+        // Generic fallback
         vec![
             "{cmd} --help".to_string(),
             "{cmd} -h".to_string(),
             "{base} help {subcmd}".to_string(),
         ]
+    }
+
+    /// Built-in help-fetching strategies for popular CLI tools
+    fn builtin_tool_flags(tool: &str) -> Option<Vec<String>> {
+        let flags = match tool {
+            // Version control
+            "git" => vec![
+                "{base} help {subcmd}",
+                "{cmd} --help",
+                "{cmd} -h",
+            ],
+            "gh" => vec![
+                "{cmd} --help",
+                "{base} help {subcmd}",
+            ],
+
+            // Container & orchestration
+            "docker" => vec![
+                "{cmd} --help",
+                "docker help {subcmd}",
+            ],
+            "kubectl" => vec![
+                "{cmd} --help",
+                "kubectl help {subcmd}",
+            ],
+            "helm" => vec![
+                "{cmd} --help",
+                "helm help {subcmd}",
+            ],
+            "podman" => vec![
+                "{cmd} --help",
+                "podman help {subcmd}",
+            ],
+
+            // Cloud CLIs (note: aws uses "help" as suffix)
+            "aws" => vec![
+                "{cmd} help",
+            ],
+            "gcloud" => vec![
+                "{cmd} --help",
+            ],
+            "az" => vec![
+                "{cmd} --help",
+                "{cmd} -h",
+            ],
+
+            // Package managers - JavaScript
+            "npm" => vec![
+                "npm help {subcmd}",
+                "{cmd} --help",
+            ],
+            "yarn" => vec![
+                "{cmd} --help",
+                "yarn help",
+            ],
+            "pnpm" => vec![
+                "{cmd} --help",
+            ],
+            "bun" => vec![
+                "{cmd} --help",
+            ],
+
+            // Package managers - Python
+            "pip" => vec![
+                "{cmd} --help",
+                "pip help {subcmd}",
+            ],
+            "poetry" => vec![
+                "{cmd} --help",
+                "poetry help {subcmd}",
+            ],
+            "uv" => vec![
+                "{cmd} --help",
+            ],
+
+            // Rust toolchain
+            "cargo" => vec![
+                "cargo help {subcmd}",
+                "{cmd} --help",
+            ],
+            "rustup" => vec![
+                "{cmd} --help",
+                "rustup help {subcmd}",
+            ],
+
+            // Go
+            "go" => vec![
+                "go help {subcmd}",
+            ],
+
+            // Infrastructure
+            "terraform" => vec![
+                "{cmd} --help",
+                "{cmd} -help",
+            ],
+            "pulumi" => vec![
+                "{cmd} --help",
+            ],
+            "ansible" => vec![
+                "{cmd} --help",
+            ],
+
+            // macOS
+            "brew" => vec![
+                "brew help {subcmd}",
+                "{cmd} --help",
+            ],
+
+            // Misc dev tools
+            "make" => vec![
+                "{cmd} --help",
+                "man make",
+            ],
+            "just" => vec![
+                "{cmd} --help",
+            ],
+            "task" => vec![
+                "{cmd} --help",
+            ],
+
+            _ => return None,
+        };
+
+        Some(flags.into_iter().map(String::from).collect())
     }
 }
 
