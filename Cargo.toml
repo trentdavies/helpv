@@ -2,6 +2,13 @@
 name = "helpv"
 version = "0.1.0"
 edition = "2024"
+description = "A terminal-based help documentation viewer with subcommand navigation"
+license = "MIT"
+repository = "https://github.com/trentdavies/helpv"
+readme = "README.md"
+keywords = ["cli", "help", "terminal", "tui", "documentation"]
+categories = ["command-line-utilities", "development-tools"]
+authors = ["Trent Davies"]
 
 [dependencies]
 ratatui = "0.29"
