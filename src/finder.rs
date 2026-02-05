@@ -86,9 +86,18 @@ impl Finder {
         }
 
         for (i, item) in self.items.iter().enumerate() {
-            let searchable = match &item.label {
-                Some(label) => format!("{} {}", label, item.name),
-                None => item.name.clone(),
+            let searchable = {
+                let mut s = String::new();
+                if let Some(label) = &item.label {
+                    s.push_str(label);
+                    s.push(' ');
+                }
+                s.push_str(&item.name);
+                if let Some(desc) = &item.description {
+                    s.push(' ');
+                    s.push_str(desc);
+                }
+                s
             };
 
             let mut haystack_buf = Vec::new();
