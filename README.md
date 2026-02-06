@@ -18,15 +18,18 @@ CLI tools have gotten complex. `git` has 150+ subcommands. `kubectl` has nested 
 
 ## Installation
 
+From crates.io:
+
 ```bash
-cargo install --path .
+cargo install helpv
 ```
 
-Or build from source:
+From source:
 
 ```bash
-cargo build --release
-# Binary at ./target/release/helpv
+git clone https://github.com/trentdavies/helpv
+cd helpv
+cargo install --path .
 ```
 
 ## Usage

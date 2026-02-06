@@ -23,11 +23,40 @@ use config::Config;
 
 #[derive(Parser, Debug)]
 #[command(name = "helpv")]
-#[command(about = "A help viewer with subcommand navigation")]
 #[command(version)]
+#[command(about = "A TUI help viewer with vim-style navigation and fuzzy subcommand finder")]
+#[command(
+    long_about = "A TUI help viewer with vim-style navigation and fuzzy subcommand finder.
+
+helpv fetches and displays help text for any command, letting you navigate
+with familiar vim keybindings. Press 'f' to fuzzy-find subcommands, Enter
+to drill into them, and Backspace to go back."
+)]
+#[command(after_long_help = "KEYBINDINGS:
+    j/k, Up/Down      Scroll line by line
+    d/u, Ctrl-d/u     Scroll half page
+    Space, Ctrl-f/b   Scroll full page
+    gg, G             Jump to top/bottom
+    /                 Search in help text
+    n/N               Next/previous search match
+    f                 Fuzzy find subcommands
+    o                 Open arbitrary command
+    Enter             Drill into selected subcommand
+    Backspace         Go back to parent command
+    ?                 Show keybindings help
+    q, Escape         Quit
+
+EXAMPLES:
+    helpv git                View git help
+    helpv git commit         View git commit help
+    helpv cargo build        View cargo build help
+
+CONFIGURATION:
+    Config file: ~/.config/helpv/config.toml
+    Customize keybindings, help flags, and subcommand patterns.")]
 struct Args {
-    /// The command to show help for
-    #[arg(required = true)]
+    /// Command (and optional subcommands) to show help for
+    #[arg(required = true, value_name = "COMMAND")]
     command: Vec<String>,
 }
 
