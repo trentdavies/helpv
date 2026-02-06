@@ -1,6 +1,11 @@
 use anyhow::Result;
 use crossterm::event::{self, Event, KeyCode, KeyEvent};
-use ratatui::{Frame, buffer::Buffer, layout::Rect, widgets::Widget};
+use ratatui::{
+    Frame,
+    buffer::Buffer,
+    layout::Rect,
+    widgets::{Clear, Widget},
+};
 use std::time::Duration;
 
 use crate::{
@@ -26,6 +31,7 @@ pub enum AppState {
 
 pub struct App {
     pub state: AppState,
+    prev_state: AppState,
     pub pager: Pager,
     pub finder: Option<Finder>,
     pub switcher: Option<CommandSwitcher>,
@@ -55,6 +61,7 @@ impl App {
 
         Ok(Self {
             state: AppState::Paging,
+            prev_state: AppState::Paging,
             pager: Pager::new(help_text),
             finder: None,
             switcher: None,
@@ -83,6 +90,13 @@ impl App {
 
     fn draw(&mut self, frame: &mut Frame) {
         let area = frame.area();
+
+        // Clear entire screen when transitioning from overlay to paging
+        // This prevents overlay artifacts from persisting
+        if self.prev_state != AppState::Paging && self.state == AppState::Paging {
+            frame.render_widget(Clear, area);
+        }
+        self.prev_state = self.state;
 
         // Clamp scroll based on current viewport
         self.pager
@@ -123,11 +137,18 @@ impl App {
     }
 
     fn handle_events(&mut self) -> Result<()> {
-        if event::poll(Duration::from_millis(100))?
-            && let Event::Key(key) = event::read()?
-        {
-            self.error_message = None; // Clear error on any key press
-            self.handle_key(key)?;
+        if event::poll(Duration::from_millis(100))? {
+            match event::read()? {
+                Event::Key(key) => {
+                    self.error_message = None; // Clear error on any key press
+                    self.handle_key(key)?;
+                }
+                Event::Resize(_, _) => {
+                    // Terminal resize: redraw will happen automatically on next frame
+                    // Just need to handle the event to trigger the redraw cycle
+                }
+                _ => {}
+            }
         }
         Ok(())
     }

@@ -138,6 +138,9 @@ impl<'a> PagerWidget<'a> {
 
 impl Widget for PagerWidget<'_> {
     fn render(self, area: Rect, buf: &mut Buffer) {
+        // Clear entire area first to prevent artifacts from persisting
+        Clear.render(area, buf);
+
         let chunks = Layout::vertical([Constraint::Min(1), Constraint::Length(1)]).split(area);
 
         let content_area = chunks[0];
