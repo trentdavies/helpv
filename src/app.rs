@@ -4,6 +4,7 @@ use ratatui::{
     Frame,
     buffer::Buffer,
     layout::Rect,
+    style::Color,
     widgets::{Clear, Widget},
 };
 use std::time::Duration;
@@ -91,9 +92,8 @@ impl App {
     fn draw(&mut self, frame: &mut Frame) {
         let area = frame.area();
 
-        // Clear entire screen when transitioning from overlay to paging
-        // This prevents overlay artifacts from persisting
-        if self.prev_state != AppState::Paging && self.state == AppState::Paging {
+        // Clear entire screen on any state transition to prevent artifacts
+        if self.prev_state != self.state {
             frame.render_widget(Clear, area);
         }
         self.prev_state = self.state;
@@ -114,16 +114,19 @@ impl App {
                 frame.render_widget(SearchInput::new(&self.search_input), status_area);
             }
             AppState::Finding => {
+                frame.render_widget(Dim, area);
                 if let Some(ref mut finder) = self.finder {
                     frame.render_widget(FinderWidget::new(finder), area);
                 }
             }
             AppState::Switching => {
+                frame.render_widget(Dim, area);
                 if let Some(ref switcher) = self.switcher {
                     frame.render_widget(SwitcherWidget::new(switcher), area);
                 }
             }
             AppState::Help => {
+                frame.render_widget(Dim, area);
                 frame.render_widget(HelpOverlay, area);
             }
             AppState::Paging => {}
@@ -434,6 +437,18 @@ fn merge_discovered_items(subcommands: &mut Vec<Subcommand>, discovered: Vec<Sub
         // Skip if there's already a subcommand with this name
         if !subcommands.iter().any(|s| s.name == item.name) {
             subcommands.push(item);
+        }
+    }
+}
+
+struct Dim;
+
+impl Widget for Dim {
+    fn render(self, area: Rect, buf: &mut Buffer) {
+        for y in area.top()..area.bottom() {
+            for x in area.left()..area.right() {
+                buf[(x, y)].set_fg(Color::DarkGray);
+            }
         }
     }
 }
