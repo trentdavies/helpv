@@ -1,14 +1,3 @@
-mod app;
-mod config;
-mod fetcher;
-mod finder;
-mod history;
-mod keys;
-mod pager;
-mod parser;
-mod switcher;
-mod toolpacks;
-
 use anyhow::Result;
 use clap::Parser;
 use crossterm::{
@@ -18,8 +7,8 @@ use crossterm::{
 use ratatui::prelude::*;
 use std::io::{self, stdout};
 
-use app::App;
-use config::Config;
+use helpv::app::App;
+use helpv::config::Config;
 
 #[derive(Parser, Debug)]
 #[command(name = "helpv")]

@@ -1,0 +1,5 @@
+- [ ] Add `[[bench]]` entry to Cargo.toml with `harness = false` for `load_time` benchmark
+- [ ] Create `benches/load_time.rs` with custom main that benchmarks `App::new()` vs `man` for git and tmux
+- [ ] Output JSON results with per-command timings, ratios, and pass/fail status
+- [ ] Exit non-zero when any command fails the baseline (helpv slower than man)
+- [ ] Verify benchmark runs headlessly and fails for git and tmux with current implementation
