@@ -7,6 +7,8 @@ use ratatui::{
 };
 use regex::Regex;
 
+use crate::fetcher::ContentSource;
+
 pub struct Pager {
     pub content: Vec<String>,
     pub scroll: usize,
@@ -124,14 +126,21 @@ pub struct PagerWidget<'a> {
     pager: &'a Pager,
     breadcrumb: &'a str,
     subcommand_count: usize,
+    content_source: ContentSource,
 }
 
 impl<'a> PagerWidget<'a> {
-    pub fn new(pager: &'a Pager, breadcrumb: &'a str, subcommand_count: usize) -> Self {
+    pub fn new(
+        pager: &'a Pager,
+        breadcrumb: &'a str,
+        subcommand_count: usize,
+        content_source: ContentSource,
+    ) -> Self {
         Self {
             pager,
             breadcrumb,
             subcommand_count,
+            content_source,
         }
     }
 }
@@ -181,6 +190,7 @@ impl Widget for PagerWidget<'_> {
             self.pager.match_count(),
             self.pager.current_match_index(),
             self.pager.scroll_percentage(viewport_height),
+            self.content_source,
         );
     }
 }
@@ -238,6 +248,7 @@ fn render_status_bar(
     match_count: usize,
     current_match: usize,
     scroll_pct: u16,
+    content_source: ContentSource,
 ) {
     let status_style = Style::default().bg(Color::DarkGray).fg(Color::White);
 
@@ -247,14 +258,14 @@ fn render_status_bar(
         buf[(x, area.y)].set_char(' ');
     }
 
-    // Left: breadcrumb
-    let breadcrumb_span = Span::styled(format!(" {} ", breadcrumb), status_style);
-    buf.set_span(
-        area.x,
-        area.y,
-        &breadcrumb_span,
-        breadcrumb.len() as u16 + 2,
-    );
+    // Left: breadcrumb + source indicator
+    let source_indicator = match content_source {
+        ContentSource::Man => " [man]",
+        ContentSource::Help => "",
+    };
+    let left_text = format!(" {}{} ", breadcrumb, source_indicator);
+    let breadcrumb_span = Span::styled(&left_text, status_style);
+    buf.set_span(area.x, area.y, &breadcrumb_span, left_text.len() as u16);
 
     // Build right side info
     let mut right_parts = Vec::new();
@@ -283,7 +294,7 @@ fn render_status_bar(
     let right_span = Span::styled(format!("{} ", right_str), status_style);
 
     let right_x = area.right().saturating_sub(right_str.len() as u16 + 1);
-    if right_x > area.x + breadcrumb.len() as u16 + 3 {
+    if right_x > area.x + left_text.len() as u16 + 1 {
         buf.set_span(right_x, area.y, &right_span, right_str.len() as u16 + 1);
     }
 }

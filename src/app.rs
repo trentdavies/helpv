@@ -11,7 +11,7 @@ use std::time::Duration;
 
 use crate::{
     config::Config,
-    fetcher::{fetch_help, fetch_help_with_invoke},
+    fetcher::{ContentSource, fetch_best_content, fetch_help_with_invoke},
     finder::{Finder, FinderAction, FinderWidget},
     history::History,
     keys::{Action, KeyHandler},
@@ -45,17 +45,22 @@ pub struct App {
     pub key_handler: KeyHandler,
     pub should_quit: bool,
     pub error_message: Option<String>,
+    pub content_source: ContentSource,
 }
 
 impl App {
     pub fn new(command: Vec<String>, config: Config) -> Result<Self> {
-        let help_text = fetch_help(&command, &config)?;
-        let mut subcommands = parse_subcommands(&help_text, &config);
+        let (content, source) = fetch_best_content(&command, &config)?;
+        let mut subcommands = parse_subcommands(&content, &config);
 
         // Run discovery for the base command and merge results
         let base_cmd = &command[0];
         let discovered = discover_items(base_cmd, &config.toolpacks);
         merge_discovered_items(&mut subcommands, discovered);
+
+        // Discover man pages for the base command
+        let man_pages = discover_man_pages(base_cmd);
+        merge_discovered_items(&mut subcommands, man_pages);
 
         let key_handler = KeyHandler::new(config.keys.clone());
         let initial_cmd = command[0].clone();
@@ -63,7 +68,7 @@ impl App {
         Ok(Self {
             state: AppState::Paging,
             prev_state: AppState::Paging,
-            pager: Pager::new(help_text),
+            pager: Pager::new(content),
             finder: None,
             switcher: None,
             history: History::new(),
@@ -75,6 +80,7 @@ impl App {
             key_handler,
             should_quit: false,
             error_message: None,
+            content_source: source,
         })
     }
 
@@ -104,7 +110,12 @@ impl App {
 
         // Draw the pager
         let breadcrumb = self.history.full_breadcrumb(&self.current_command);
-        let pager_widget = PagerWidget::new(&self.pager, &breadcrumb, self.subcommands.len());
+        let pager_widget = PagerWidget::new(
+            &self.pager,
+            &breadcrumb,
+            self.subcommands.len(),
+            self.content_source,
+        );
         frame.render_widget(pager_widget, area);
 
         // Draw overlays based on state
@@ -305,44 +316,69 @@ impl App {
     }
 
     fn drill_into_item(&mut self, item: &Subcommand) -> Result<()> {
-        // Save current state to history
-        self.history
-            .push(self.current_command.clone(), self.pager.scroll);
+        // Save current state to history (including content source)
+        self.history.push(
+            self.current_command.clone(),
+            self.pager.scroll,
+            self.content_source,
+        );
 
         let base_cmd = &self.current_command[0];
+        let is_man_invoke = item
+            .invoke_command
+            .as_ref()
+            .is_some_and(|cmd| cmd.starts_with("man "));
 
         // Check if this item has a custom invoke command
         let result = if let Some(ref invoke_cmd) = item.invoke_command {
-            // Use custom invoke command (e.g., for git guides: "git help {name}")
-            fetch_help_with_invoke(base_cmd, &item.name, invoke_cmd)
+            // Use custom invoke command (e.g., for git guides or man pages)
+            fetch_help_with_invoke(base_cmd, &item.name, invoke_cmd).map(|text| {
+                (
+                    text,
+                    if is_man_invoke {
+                        ContentSource::Man
+                    } else {
+                        ContentSource::Help
+                    },
+                )
+            })
         } else {
-            // Standard subcommand navigation
+            // Standard subcommand navigation with thin-content upgrade
             let mut new_cmd = self.current_command.clone();
             new_cmd.push(item.name.clone());
-            fetch_help(&new_cmd, &self.config)
+            fetch_best_content(&new_cmd, &self.config)
         };
 
         match result {
-            Ok(help_text) => {
-                let mut subcommands = parse_subcommands(&help_text, &self.config);
+            Ok((content, source)) => {
+                let mut subcommands = parse_subcommands(&content, &self.config);
 
                 // If using custom invoke, we stay at the same command level
                 // Otherwise, we're drilling into a subcommand
                 if item.invoke_command.is_some() {
-                    // For custom invokes (like guides), don't change current_command
-                    // but clear subcommands since we're viewing a different kind of content
+                    // For custom invokes (like guides or man pages), don't change current_command
+                    // Discover man pages from SEE ALSO if this is man page content
+                    if source == ContentSource::Man {
+                        let see_also = parse_see_also(&content, base_cmd);
+                        merge_discovered_items(&mut subcommands, see_also);
+                    }
                 } else {
                     // Run discovery for subcommands too
                     let discovered = discover_items(base_cmd, &self.config.toolpacks);
                     merge_discovered_items(&mut subcommands, discovered);
+
+                    // Discover man pages
+                    let man_pages = discover_man_pages(base_cmd);
+                    merge_discovered_items(&mut subcommands, man_pages);
 
                     let mut new_cmd = self.current_command.clone();
                     new_cmd.push(item.name.clone());
                     self.current_command = new_cmd;
                 }
 
+                self.content_source = source;
                 self.subcommands = subcommands;
-                self.pager = Pager::new(help_text);
+                self.pager = Pager::new(content);
                 self.finder = None;
                 self.state = AppState::Paging;
             }
@@ -360,17 +396,22 @@ impl App {
 
     fn go_back(&mut self) -> Result<()> {
         if let Some(entry) = self.history.pop() {
-            match fetch_help(&entry.command, &self.config) {
-                Ok(help_text) => {
-                    let mut subcommands = parse_subcommands(&help_text, &self.config);
+            match fetch_best_content(&entry.command, &self.config) {
+                Ok((content, _source)) => {
+                    let mut subcommands = parse_subcommands(&content, &self.config);
                     let base_cmd = &entry.command[0];
                     let discovered = discover_items(base_cmd, &self.config.toolpacks);
                     merge_discovered_items(&mut subcommands, discovered);
 
+                    let man_pages = discover_man_pages(base_cmd);
+                    merge_discovered_items(&mut subcommands, man_pages);
+
                     self.subcommands = subcommands;
-                    self.pager = Pager::new(help_text);
+                    self.pager = Pager::new(content);
                     self.pager.scroll = entry.scroll_position;
                     self.current_command = entry.command;
+                    // Restore the source from when we originally viewed this level
+                    self.content_source = entry.source;
                 }
                 Err(e) => {
                     self.error_message = Some(format!("Could not go back: {}", e));
@@ -383,8 +424,8 @@ impl App {
     fn switch_to_command(&mut self, cmd: &str) -> Result<()> {
         let new_command = vec![cmd.to_string()];
 
-        match fetch_help(&new_command, &self.config) {
-            Ok(help_text) => {
+        match fetch_best_content(&new_command, &self.config) {
+            Ok((content, source)) => {
                 // Add to command history if not already present
                 if !self.command_history.contains(&cmd.to_string()) {
                     self.command_history.push(cmd.to_string());
@@ -393,13 +434,17 @@ impl App {
                 // Clear navigation history since we're switching to a new command
                 self.history = History::new();
 
-                let mut subcommands = parse_subcommands(&help_text, &self.config);
+                let mut subcommands = parse_subcommands(&content, &self.config);
                 let discovered = discover_items(cmd, &self.config.toolpacks);
                 merge_discovered_items(&mut subcommands, discovered);
 
+                let man_pages = discover_man_pages(cmd);
+                merge_discovered_items(&mut subcommands, man_pages);
+
                 self.subcommands = subcommands;
-                self.pager = Pager::new(help_text);
+                self.pager = Pager::new(content);
                 self.current_command = new_command;
+                self.content_source = source;
                 self.switcher = None;
                 self.state = AppState::Paging;
             }
@@ -427,6 +472,101 @@ fn discover_items(base_cmd: &str, toolpacks: &ToolPacks) -> Vec<Subcommand> {
             description: item.description,
             label: Some(item.label),
             invoke_command: Some(item.invoke_template),
+        })
+        .collect()
+}
+
+/// Discover man pages matching `<base>-*` via `man -k`
+fn discover_man_pages(base_cmd: &str) -> Vec<Subcommand> {
+    use regex::Regex;
+    use std::process::Command;
+
+    let pattern = format!("^{}-", regex::escape(base_cmd));
+    let Ok(output) = Command::new("man").args(["-k", &pattern]).output() else {
+        return Vec::new();
+    };
+
+    if !output.status.success() {
+        return Vec::new();
+    }
+
+    let text = String::from_utf8_lossy(&output.stdout);
+    // man -k output format: "name (section) - description" or "name(section) - description"
+    let entry_re = Regex::new(r"^([\w][\w.-]*)\s*\(\d+\)\s*-\s*(.*)$").unwrap();
+
+    text.lines()
+        .filter_map(|line| {
+            let caps = entry_re.captures(line.trim())?;
+            let name = caps.get(1)?.as_str().to_string();
+            let description = caps.get(2).map(|m| m.as_str().trim().to_string());
+
+            // Only include pages that start with base_cmd-
+            if !name.starts_with(&format!("{}-", base_cmd)) {
+                return None;
+            }
+
+            Some(Subcommand {
+                name: name.clone(),
+                description,
+                label: Some("Man Pages".to_string()),
+                invoke_command: Some(format!("man {}", name)),
+            })
+        })
+        .collect()
+}
+
+/// Parse SEE ALSO section from man page content to discover related pages
+fn parse_see_also(content: &str, base_cmd: &str) -> Vec<Subcommand> {
+    use regex::Regex;
+
+    let mut in_see_also = false;
+    let mut see_also_text = String::new();
+
+    for line in content.lines() {
+        let trimmed = line.trim();
+        if trimmed == "SEE ALSO" || trimmed == "See Also" || trimmed == "SEE  ALSO" {
+            in_see_also = true;
+            continue;
+        }
+        if in_see_also {
+            // End of section: next non-indented header
+            if !trimmed.is_empty()
+                && !trimmed.starts_with(' ')
+                && trimmed.chars().next().is_some_and(|c| c.is_uppercase())
+                && !trimmed.contains('(')
+            {
+                break;
+            }
+            see_also_text.push_str(line);
+            see_also_text.push(' ');
+        }
+    }
+
+    if see_also_text.is_empty() {
+        return Vec::new();
+    }
+
+    let entry_re = Regex::new(r"([\w][\w.-]*)\(\d+\)").unwrap();
+    let prefix = format!("{}-", base_cmd);
+
+    entry_re
+        .captures_iter(&see_also_text)
+        .filter_map(|caps| {
+            let name = caps.get(1)?.as_str().to_string();
+            // Only include pages related to the base command
+            if !name.starts_with(&prefix) && name != base_cmd {
+                return None;
+            }
+            // Skip the base command itself
+            if name == base_cmd {
+                return None;
+            }
+            Some(Subcommand {
+                name: name.clone(),
+                description: None,
+                label: Some("Man Pages".to_string()),
+                invoke_command: Some(format!("man {}", name)),
+            })
         })
         .collect()
 }
@@ -471,5 +611,82 @@ impl Widget for ErrorMessage<'_> {
         let msg = format!(" Error: {} ", self.0);
         let span = Span::styled(msg, style);
         buf.set_span(area.x, area.y, &span, area.width);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ========================================
+    // parse_see_also tests
+    // ========================================
+
+    #[test]
+    fn see_also_standard_format() {
+        let content = "\
+NAME
+       git-log - Show commit logs
+
+DESCRIPTION
+       Shows the commit log.
+
+SEE ALSO
+       git-diff(1), git-show(1), git-format-patch(1), unrelated-tool(1)
+
+AUTHOR
+       Written by Linus Torvalds
+";
+        let results = parse_see_also(content, "git");
+        let names: Vec<&str> = results.iter().map(|s| s.name.as_str()).collect();
+        assert!(names.contains(&"git-diff"));
+        assert!(names.contains(&"git-show"));
+        assert!(names.contains(&"git-format-patch"));
+        assert!(!names.contains(&"unrelated-tool"));
+        assert!(
+            results
+                .iter()
+                .all(|s| s.label.as_deref() == Some("Man Pages"))
+        );
+        assert!(results.iter().all(|s| s.invoke_command.is_some()));
+    }
+
+    #[test]
+    fn see_also_mixed_entries() {
+        let content = "\
+SEE ALSO
+       curl-config(1), libcurl(3), curl-easy-init(3)
+";
+        let results = parse_see_also(content, "curl");
+        let names: Vec<&str> = results.iter().map(|s| s.name.as_str()).collect();
+        assert!(names.contains(&"curl-config"));
+        assert!(names.contains(&"curl-easy-init"));
+        // libcurl doesn't start with "curl-"
+        assert!(!names.contains(&"libcurl"));
+    }
+
+    #[test]
+    fn see_also_no_section() {
+        let content = "\
+NAME
+       foo - does things
+
+DESCRIPTION
+       It does things.
+";
+        let results = parse_see_also(content, "foo");
+        assert!(results.is_empty());
+    }
+
+    #[test]
+    fn see_also_skips_base_command_itself() {
+        let content = "\
+SEE ALSO
+       git(1), git-log(1)
+";
+        let results = parse_see_also(content, "git");
+        let names: Vec<&str> = results.iter().map(|s| s.name.as_str()).collect();
+        assert!(!names.contains(&"git"));
+        assert!(names.contains(&"git-log"));
     }
 }

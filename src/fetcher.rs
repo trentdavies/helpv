@@ -3,6 +3,12 @@ use std::process::Command;
 
 use crate::config::Config;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ContentSource {
+    Help,
+    Man,
+}
+
 pub fn fetch_help(cmd: &[String], config: &Config) -> Result<String> {
     if cmd.is_empty() {
         return Err(anyhow!("No command specified"));
@@ -34,6 +40,20 @@ pub fn fetch_help(cmd: &[String], config: &Config) -> Result<String> {
     }
 
     Err(anyhow!("Could not fetch help for '{}'", cmd.join(" ")))
+}
+
+/// Fetch the best content for a command: try help first, upgrade to man page if thin.
+pub fn fetch_best_content(cmd: &[String], config: &Config) -> Result<(String, ContentSource)> {
+    let help_text = fetch_help(cmd, config)?;
+
+    if is_thin(&help_text)
+        && let Some(man_text) = try_man_page(cmd)
+        && !man_text.trim().is_empty()
+    {
+        return Ok((man_text, ContentSource::Man));
+    }
+
+    Ok((help_text, ContentSource::Help))
 }
 
 /// Fetch help using a specific invoke command template
@@ -174,6 +194,16 @@ fn strip_man_formatting(text: &str) -> String {
     result
 }
 
+const THIN_CONTENT_THRESHOLD: usize = 10;
+
+fn is_thin(content: &str) -> bool {
+    let non_blank_lines = content
+        .lines()
+        .filter(|line| !line.trim().is_empty())
+        .count();
+    non_blank_lines < THIN_CONTENT_THRESHOLD
+}
+
 fn looks_like_help(text: &str) -> bool {
     let lower = text.to_lowercase();
     lower.contains("usage:")
@@ -311,5 +341,45 @@ mod tests {
         assert!(looks_like_help("OPTIONS: bar"));
         assert!(looks_like_help("Options: bar"));
         assert!(looks_like_help("options: bar"));
+    }
+
+    // ========================================
+    // is_thin tests
+    // ========================================
+
+    #[test]
+    fn thin_empty_content() {
+        assert!(is_thin(""));
+    }
+
+    #[test]
+    fn thin_three_lines() {
+        let content = "usage: foo [options]\n  -h  help\n  -v  version";
+        assert!(is_thin(content));
+    }
+
+    #[test]
+    fn thin_eight_nonblank_with_blanks_interspersed() {
+        let content =
+            "line1\n\nline2\n\nline3\n\nline4\n\nline5\n\nline6\n\nline7\n\nline8\n\n\n\n";
+        assert!(is_thin(content));
+    }
+
+    #[test]
+    fn not_thin_ten_lines() {
+        let content = (0..10)
+            .map(|i| format!("line {i}"))
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(!is_thin(&content));
+    }
+
+    #[test]
+    fn not_thin_twenty_five_lines() {
+        let content = (0..25)
+            .map(|i| format!("line {i}"))
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(!is_thin(&content));
     }
 }

@@ -1,7 +1,10 @@
+use crate::fetcher::ContentSource;
+
 #[derive(Debug, Clone)]
 pub struct HistoryEntry {
     pub command: Vec<String>,
     pub scroll_position: usize,
+    pub source: ContentSource,
 }
 
 #[derive(Debug, Default)]
@@ -14,10 +17,11 @@ impl History {
         Self::default()
     }
 
-    pub fn push(&mut self, command: Vec<String>, scroll_position: usize) {
+    pub fn push(&mut self, command: Vec<String>, scroll_position: usize, source: ContentSource) {
         self.entries.push(HistoryEntry {
             command,
             scroll_position,
+            source,
         });
     }
 
