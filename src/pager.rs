@@ -20,7 +20,11 @@ pub struct Pager {
 
 impl Pager {
     pub fn new(content: String) -> Self {
-        let lines: Vec<String> = content.lines().map(|s| s.to_string()).collect();
+        let mut lines: Vec<String> = content.lines().map(|s| s.to_string()).collect();
+        // Add padding so the last lines of content aren't pinned to the viewport bottom
+        for _ in 0..5 {
+            lines.push(String::new());
+        }
         Self {
             content: lines,
             scroll: 0,
