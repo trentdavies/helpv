@@ -7,6 +7,7 @@ use ratatui::{
     style::Color,
     widgets::{Clear, Widget},
 };
+use std::sync::mpsc;
 use std::time::Duration;
 
 use crate::{
@@ -46,24 +47,19 @@ pub struct App {
     pub should_quit: bool,
     pub error_message: Option<String>,
     pub content_source: ContentSource,
+    discovery_receiver: Option<mpsc::Receiver<Vec<Subcommand>>>,
 }
 
 impl App {
     pub fn new(command: Vec<String>, config: Config) -> Result<Self> {
         let (content, source) = fetch_best_content(&command, &config)?;
-        let mut subcommands = parse_subcommands(&content, &config);
-
-        // Run discovery for the base command and merge results
-        let base_cmd = &command[0];
-        let discovered = discover_items(base_cmd, &config.toolpacks);
-        merge_discovered_items(&mut subcommands, discovered);
-
-        // Discover man pages for the base command
-        let man_pages = discover_man_pages(base_cmd);
-        merge_discovered_items(&mut subcommands, man_pages);
+        let subcommands = parse_subcommands(&content, &config);
 
         let key_handler = KeyHandler::new(config.keys.clone());
         let initial_cmd = command[0].clone();
+
+        // Spawn background discovery (man -k + toolpacks) — results arrive via channel
+        let receiver = spawn_discovery(&command[0], &config.toolpacks);
 
         Ok(Self {
             state: AppState::Paging,
@@ -81,6 +77,7 @@ impl App {
             should_quit: false,
             error_message: None,
             content_source: source,
+            discovery_receiver: Some(receiver),
         })
     }
 
@@ -151,6 +148,8 @@ impl App {
     }
 
     fn handle_events(&mut self) -> Result<()> {
+        self.poll_discovery();
+
         if event::poll(Duration::from_millis(100))? {
             match event::read()? {
                 Event::Key(key) => {
@@ -165,6 +164,21 @@ impl App {
             }
         }
         Ok(())
+    }
+
+    fn poll_discovery(&mut self) {
+        if let Some(ref rx) = self.discovery_receiver {
+            match rx.try_recv() {
+                Ok(discovered) => {
+                    merge_discovered_items(&mut self.subcommands, discovered);
+                    self.discovery_receiver = None;
+                }
+                Err(mpsc::TryRecvError::Disconnected) => {
+                    self.discovery_receiver = None;
+                }
+                Err(mpsc::TryRecvError::Empty) => {}
+            }
+        }
     }
 
     fn handle_key(&mut self, key: KeyEvent) -> Result<()> {
@@ -323,7 +337,7 @@ impl App {
             self.content_source,
         );
 
-        let base_cmd = &self.current_command[0];
+        let base_cmd = self.current_command[0].clone();
         let is_man_invoke = item
             .invoke_command
             .as_ref()
@@ -332,7 +346,7 @@ impl App {
         // Check if this item has a custom invoke command
         let result = if let Some(ref invoke_cmd) = item.invoke_command {
             // Use custom invoke command (e.g., for git guides or man pages)
-            fetch_help_with_invoke(base_cmd, &item.name, invoke_cmd).map(|text| {
+            fetch_help_with_invoke(&base_cmd, &item.name, invoke_cmd).map(|text| {
                 (
                     text,
                     if is_man_invoke {
@@ -359,21 +373,17 @@ impl App {
                     // For custom invokes (like guides or man pages), don't change current_command
                     // Discover man pages from SEE ALSO if this is man page content
                     if source == ContentSource::Man {
-                        let see_also = parse_see_also(&content, base_cmd);
+                        let see_also = parse_see_also(&content, &base_cmd);
                         merge_discovered_items(&mut subcommands, see_also);
                     }
                 } else {
-                    // Run discovery for subcommands too
-                    let discovered = discover_items(base_cmd, &self.config.toolpacks);
-                    merge_discovered_items(&mut subcommands, discovered);
-
-                    // Discover man pages
-                    let man_pages = discover_man_pages(base_cmd);
-                    merge_discovered_items(&mut subcommands, man_pages);
-
                     let mut new_cmd = self.current_command.clone();
                     new_cmd.push(item.name.clone());
                     self.current_command = new_cmd;
+
+                    // Spawn background discovery for the base command
+                    self.discovery_receiver =
+                        Some(spawn_discovery(&base_cmd, &self.config.toolpacks));
                 }
 
                 self.content_source = source;
@@ -398,20 +408,18 @@ impl App {
         if let Some(entry) = self.history.pop() {
             match fetch_best_content(&entry.command, &self.config) {
                 Ok((content, _source)) => {
-                    let mut subcommands = parse_subcommands(&content, &self.config);
-                    let base_cmd = &entry.command[0];
-                    let discovered = discover_items(base_cmd, &self.config.toolpacks);
-                    merge_discovered_items(&mut subcommands, discovered);
-
-                    let man_pages = discover_man_pages(base_cmd);
-                    merge_discovered_items(&mut subcommands, man_pages);
+                    let subcommands = parse_subcommands(&content, &self.config);
+                    let base_cmd = entry.command[0].clone();
 
                     self.subcommands = subcommands;
                     self.pager = Pager::new(content);
                     self.pager.scroll = entry.scroll_position;
                     self.current_command = entry.command;
-                    // Restore the source from when we originally viewed this level
                     self.content_source = entry.source;
+
+                    // Spawn background discovery
+                    self.discovery_receiver =
+                        Some(spawn_discovery(&base_cmd, &self.config.toolpacks));
                 }
                 Err(e) => {
                     self.error_message = Some(format!("Could not go back: {}", e));
@@ -434,12 +442,7 @@ impl App {
                 // Clear navigation history since we're switching to a new command
                 self.history = History::new();
 
-                let mut subcommands = parse_subcommands(&content, &self.config);
-                let discovered = discover_items(cmd, &self.config.toolpacks);
-                merge_discovered_items(&mut subcommands, discovered);
-
-                let man_pages = discover_man_pages(cmd);
-                merge_discovered_items(&mut subcommands, man_pages);
+                let subcommands = parse_subcommands(&content, &self.config);
 
                 self.subcommands = subcommands;
                 self.pager = Pager::new(content);
@@ -447,6 +450,9 @@ impl App {
                 self.content_source = source;
                 self.switcher = None;
                 self.state = AppState::Paging;
+
+                // Spawn background discovery for the new command
+                self.discovery_receiver = Some(spawn_discovery(cmd, &self.config.toolpacks));
             }
             Err(e) => {
                 self.error_message = Some(format!("Could not fetch help for '{}': {}", cmd, e));
@@ -457,6 +463,41 @@ impl App {
 
         Ok(())
     }
+}
+
+/// Spawn a background thread that runs both discovery sources (toolpacks + man -k)
+/// and sends the combined results back via a channel.
+fn spawn_discovery(base_cmd: &str, toolpacks: &ToolPacks) -> mpsc::Receiver<Vec<Subcommand>> {
+    let (tx, rx) = mpsc::channel();
+    let base_cmd = base_cmd.to_string();
+    let toolpacks = toolpacks.clone();
+
+    std::thread::spawn(move || {
+        let results = run_discovery(&base_cmd, &toolpacks);
+        // Send silently fails if receiver was dropped (e.g. user navigated away) — that's fine
+        let _ = tx.send(results);
+    });
+
+    rx
+}
+
+/// Run both discovery sources in parallel using scoped threads.
+fn run_discovery(base_cmd: &str, toolpacks: &ToolPacks) -> Vec<Subcommand> {
+    let mut all = Vec::new();
+
+    std::thread::scope(|s| {
+        let toolpack_handle = s.spawn(|| discover_items(base_cmd, toolpacks));
+        let man_handle = s.spawn(|| discover_man_pages(base_cmd));
+
+        if let Ok(items) = toolpack_handle.join() {
+            all.extend(items);
+        }
+        if let Ok(pages) = man_handle.join() {
+            merge_discovered_items(&mut all, pages);
+        }
+    });
+
+    all
 }
 
 /// Run discovery sources for a tool and return discovered items as Subcommands
